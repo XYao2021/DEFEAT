@@ -43,9 +43,9 @@ class Model:
         #     from model.SVHNModel import SVHNModel
         #     self.model = SVHNModel().to(device)
         elif model_name == 'CIFAR10Model':
-            from model.CIFAR10Model import CIFAR10Model, ResNet8, ResNet18, ResNet34
+            from model.CIFAR10Model import CIFAR10Model, ResNet20
             # self.model = CIFAR10Model().to(device)
-            self.model = ResNet18().to(device)
+            self.model = ResNet20().to(device)
 
         if pretrained_model_file is not None:
             self.model.load_state_dict(torch.load(pretrained_model_file, map_location=device))

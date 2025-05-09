@@ -131,7 +131,7 @@ if __name__ == '__main__':
         elif ALGORITHM == 'CEDAS':
             max_value = 0.0525
             min_value = -0.0233
-        elif ALGORITHM == 'MOTEF':
+        elif ALGORITHM == 'MoTEF':
             max_value = 1.9098
             min_value = -2.7054
 
@@ -209,7 +209,7 @@ if __name__ == '__main__':
                 client_tmps.append(model.get_weights().to(device))
                 client_accumulate.append(torch.zeros_like(model.get_weights()).to(device))
                 neighbors_accumulates.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
-            if ALGORITHM == 'MOTEF' or 'MOTEF_VR' or 'NDEFD':
+            if ALGORITHM == 'MoTEF' or 'MoTEF_VR' or 'NDEFD':
                 # client_tmps.append(model.get_weights().to(device))
                 neighbor_H.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
                 neighbor_G.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])

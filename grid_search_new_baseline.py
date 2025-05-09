@@ -40,9 +40,9 @@ if __name__ == '__main__':
     elif ALGORITHM == 'CEDAS':
         BETAS = [0.005, 0.01, 0.05, 0.1, 0.2, 0.25]  # alpha
         Gamma = [0.1, 0.3, 0.5, 0.6, 0.7, 0.8, 0.9]  # gamma
-    elif ALGORITHM == 'MOTEF':
+    elif ALGORITHM == 'MoTEF':
         BETAS = [0.005, 0.01, 0.05, 0.1]  # Lambda
-        Gamma = [0.1, 0.2, 0.4, 0.6, 0.8, 0.9]  # gamma
+        Gamma = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 0.9]  # gamma
     elif ALGORITHM == 'NDEFD':
         BETAS = [1]  # Lambda
         if ADAPTIVE:
@@ -83,7 +83,7 @@ if __name__ == '__main__':
         else:
             raise Exception('This data distribution method has not been embedded')
 
-        if ALGORITHM == 'EFD':
+        if ALGORITHM == 'NDEFD':
             #     # max_value = 0.2782602
             #     # min_value = -0.2472423
             # max_value = 0.5642
@@ -111,7 +111,7 @@ if __name__ == '__main__':
         elif ALGORITHM == 'CEDAS':
             max_value = 0.0525
             min_value = -0.0233
-        elif ALGORITHM == 'MOTEF':
+        elif ALGORITHM == 'MoTEF':
             max_value = 1.9098
             min_value = -2.7054
 
@@ -165,7 +165,7 @@ if __name__ == '__main__':
                         neighbor_updates.append([torch.zeros_like(model.get_weights()) for i in range(len(Transfer.neighbors[n]))])
 
                         if COMPRESSION == 'quantization':
-                            if ALGORITHM == 'EFD':
+                            if ALGORITHM == 'NDEFD':
                                 DISCOUNT = np.sqrt(QUANTIZE_LEVEL)
                                 scale = 2 ** QUANTIZE_LEVEL - 1
                                 step = (max_value - min_value) / scale
@@ -180,7 +180,7 @@ if __name__ == '__main__':
                             # normalization = step
 
                         elif COMPRESSION == 'topk':
-                            normalization = None
+                            normalization = 1
                             if CONTROL is True:
                                 client_compressor.append(Lyapunov_compression_T(node=n, avg_comm_cost=average_comm_cost, V=V, W=W))
                                 client_partition.append(Lyapunov_Participation(node=n, average_comp_cost=average_comp_cost, V=V, W=W, seed=seed))
@@ -215,7 +215,7 @@ if __name__ == '__main__':
                                                range(len(Transfer.neighbors[n]))])
                             H.append(torch.zeros_like(model.get_weights()).to(device))
                             G.append(torch.zeros_like(model.get_weights()).to(device))
-                        if ALGORITHM == 'MOTEF' or 'MOTEF_VR':
+                        if ALGORITHM == 'MoTEF' or 'MoTEF_VR':
                             # client_tmps.append(model.get_weights().to(device))
                             neighbor_H.append([torch.zeros_like(model.get_weights()).to(device) for i in
                                                range(len(Transfer.neighbors[n]))])
@@ -247,13 +247,13 @@ if __name__ == '__main__':
 
                     while True:
                         # print('SEED ', '|', seed, '|', 'ITERATION ', iter_num)
-                        if ALGORITHM == 'EFD':
+                        if ALGORITHM == 'NDEFD':
                             if ADAPTIVE:
                                 pass
                             else:
                                 for n in range(CLIENTS):
                                     client_compressor[n].discount_parameter = Gamma[cons]
-                            Algorithm.EFD_dc(iter_num=iter_num, normalization=normalization)
+                            Algorithm.NDEFD(iter_num=iter_num, normalization=normalization)
                         elif ALGORITHM == 'CHOCO':
                             Algorithm.CHOCO(iter_num=iter_num, consensus=Gamma[cons])
                         elif ALGORITHM == 'DCD':
@@ -275,7 +275,7 @@ if __name__ == '__main__':
                             if iter_num == 0:
                                 print('Algorithm CEDAS applied')
                             Algorithm.CEDAS(iter_num=iter_num, gamma=Gamma[cons], alpha=beta)
-                        elif ALGORITHM == 'MOTEF':
+                        elif ALGORITHM == 'MoTEF':
                             if iter_num == 0:
                                 print('Algorithm MOTEF applied')
                             Algorithm.MoTEF(iter_num=iter_num, gamma=Gamma[cons], learning_rate=Learning_rates[lr], Lambda=beta)

@@ -16,8 +16,8 @@ class Transform:
         if seed is not None:
             np.random.seed(seed)
         if network == 'Ring':
-            # self._Ring_network()
-            self.random_ring_network()
+            self._Ring_network()
+            # self.random_ring_network()
         elif network == 'Torus':
             self._Torus_network()
         elif network == 'Cyclic':
@@ -167,12 +167,10 @@ class Transform:
         eigenvalues = np.linalg.eigvals(self.factor * self.matrix)
         # print(eigenvalues)
         eigenvalues = np.sort(eigenvalues, axis=-1)[::-1]
-        # print(eigenvalues)
 
-        rho = eigenvalues[1]
-        eigenvalues = 1 - eigenvalues[1:]
-        mu = np.max(eigenvalues)
-        alpha_max = ((1 - rho) ** 2) / (6 * (mu ** 2))
-        return alpha_max, rho
+        Gaps = 1 - eigenvalues
+        print('Eigenvalues: ', eigenvalues)
+        print('Gaps: ', Gaps)
+        return eigenvalues, Gaps
 
 

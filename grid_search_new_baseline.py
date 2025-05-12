@@ -30,16 +30,16 @@ if __name__ == '__main__':
     ALPHAS = []
     MAXES = []
 
-    Learning_rates = [0.001, 0.005, 0.01, 0.02, 0.0316, 0.056, 0.1]
+    Learning_rates = [0.001, 0.01, 0.0316, 0.056, 0.1]
     if ALGORITHM == 'BEER':
         BETAS = [1]
-        Gamma = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5]
-    elif ALGORITHM == 'DeCoM':
-        BETAS = [0.0001, 0.001, 0.01, 0.1, 0.5, 0.9]
-        Gamma = [0.1, 0.2, 0.3, 0.4, 0.5, 0.9]
+        Gamma = [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5]
+    # elif ALGORITHM == 'DeCoM':
+    #     BETAS = [0.0001, 0.001, 0.01, 0.1, 0.5, 0.9]
+    #     Gamma = [0.1, 0.2, 0.3, 0.4, 0.5, 0.9]
     elif ALGORITHM == 'CEDAS':
-        BETAS = [0.005, 0.01, 0.05, 0.1, 0.2, 0.25]  # alpha
-        Gamma = [0.1, 0.3, 0.5, 0.6, 0.7, 0.8, 0.9]  # gamma
+        BETAS = [0.005, 0.01, 0.05]  # alpha
+        Gamma = [0.1, 0.3, 0.5, 0.7, 0.9]  # gamma
     elif ALGORITHM == 'MoTEF':
         BETAS = [0.005, 0.01, 0.05, 0.1]  # Lambda
         Gamma = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 0.9]  # gamma
@@ -51,7 +51,7 @@ if __name__ == '__main__':
             Gamma = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
     elif ALGORITHM == 'CHOCO':
         BETAS = [1]
-        Gamma = [0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9]
+        Gamma = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
     elif ALGORITHM == 'DCD':
         BETAS = [1]
         Gamma = [1]
@@ -121,7 +121,7 @@ if __name__ == '__main__':
             raise Exception('The Transfer Matrix Should be Symmetric')
         else:
             print('Transfer Matrix is Symmetric Matrix', '\n')
-        alpha_max = Transfer.Get_alpha_upper_bound_theory()
+        Transfer.Get_alpha_upper_bound_theory()
         LOSS_DCs = []
         for beta in BETAS:
             beta_lr = []
@@ -234,7 +234,7 @@ if __name__ == '__main__':
                                            neighbor_models=neighbor_models, neighbors_accumulates=neighbors_accumulates,
                                            client_tmps=client_tmps, neighbors_estimates=neighbors_estimates,
                                            client_partition=client_partition,
-                                           control=CONTROL, alpha_max=alpha_max, compression_method=COMPRESSION,
+                                           control=CONTROL, alpha_max=0, compression_method=COMPRESSION,
                                            estimate_gossip_error=estimate_gossip_error, current_weights=current_weights,
                                            m_hat=m_hat,
                                            adaptive=ADAPTIVE, threshold=THRESHOLD, H=H, neighbor_H=neighbor_H, G=G,

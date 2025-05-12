@@ -87,15 +87,15 @@ if __name__ == '__main__':
         G = []
 
         if ALGORITHM == 'EFD':
-            #     # max_value = 0.2782602
-            #     # min_value = -0.2472423
-            # max_value = 0.5642
-            # min_value = -0.5123
+            # max_value = 0.2782602
+            # min_value = -0.2472423
+            max_value = 0.5642
+            min_value = -0.5123
             # max_value = 0.3015
             # min_value = -0.3220
-            "FashionMNIST"
-            max_value = 0.4066
-            min_value = -0.2881
+            "FashionMNIST Used before"
+            # max_value = 0.4066
+            # min_value = -0.2881
             "KMNIST"
             # max_value = 0.2222
             # min_value = -0.2274
@@ -143,8 +143,7 @@ if __name__ == '__main__':
             raise Exception('The Transfer Matrix Should be Symmetric')
         else:
             print(NETWORK, 'Transfer Matrix is Symmetric Matrix', '\n')
-        alpha_max, rho = Transfer.Get_alpha_upper_bound_theory()
-        print('rho value: ', rho, 1 / (1-rho))
+        Transfer.Get_alpha_upper_bound_theory()
 
         test_model = Model(random_seed=seed, learning_rate=LEARNING_RATE, model_name=model_name, device=device, flatten_weight=True, pretrained_model_file=load_model_file)
         # Preparation for every vector variables
@@ -228,7 +227,7 @@ if __name__ == '__main__':
                                models=Models, data_loaders=client_train_loader, transfer=Transfer,
                                neighbor_models=neighbor_models, neighbors_accumulates=neighbors_accumulates,
                                client_tmps=client_tmps, neighbors_estimates=neighbors_estimates, client_partition=client_partition,
-                               control=CONTROL, alpha_max=alpha_max, compression_method=COMPRESSION,
+                               control=CONTROL, alpha_max=0, compression_method=COMPRESSION,
                                estimate_gossip_error=estimate_gossip_error, current_weights=current_weights, m_hat=m_hat,
                                adaptive=ADAPTIVE, threshold=THRESHOLD, H=H, neighbor_H=neighbor_H, G=G, neighbor_G=neighbor_G)
         global_loss = []
@@ -266,7 +265,7 @@ if __name__ == '__main__':
                 if iter_num == 0:
                     print('Algorithm MOTEF applied')
                 Algorithm.MoTEF(iter_num=iter_num, gamma=DISCOUNT, learning_rate=LEARNING_RATE, Lambda=BETA)  # 0.05 / 0.01 / 0.1 # gamma = 0.2 , Lambda = 0.05
-            elif ALGORITHM == 'MOTEF_VR':  # 0
+            elif ALGORITHM == 'MoTEF_VR':  # 0
                 if iter_num == 0:
                     print('Algorithm MOTEF_VR applied')
                 Algorithm.MOTEF_VR(iter_num=iter_num, gamma=DISCOUNT, learning_rate=LEARNING_RATE, Lambda=BETA)
@@ -280,6 +279,7 @@ if __name__ == '__main__':
             "Need to change the testing model to local model rather than global averaged model"
             test_weights = average_weights([Algorithm.models[i].get_weights() for i in range(CLIENTS)])  # test with global averaged model
             # test_weights = Algorithm.models[0].get_weights()  # test with local model
+
             train_loss, train_acc = test_model.accuracy(weights=test_weights, test_loader=train_loader, device=device)
             test_loss, test_acc = test_model.accuracy(weights=test_weights, test_loader=test_loader, device=device)
 
@@ -313,7 +313,7 @@ if __name__ == '__main__':
             txt_list = [Maxes, '\n', Mines, '\n', ACC, '\n', LOSS]
             print(max(Maxes), min(Maxes), max(Mines), min(Mines))
         else:
-            txt_list = [ACC, '\n', LOSS]
+            txt_list = [ACC, '\n', LOSS, '\n', eigenvalues, '\n', Gaps]
             # txt_list = [ACC, '\n', LOSS, '\n', ALPHAS]
             # txt_list = [ACC, '\n', LOSS, '\n', ALPHAS, '\n', MAXES]
 

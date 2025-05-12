@@ -108,8 +108,6 @@ class Algorithms:
 
     def logger(self):
         print(' compression method:', self.compression_method, '\n',
-              'apply control method: ', self.control, '\n',
-              'alpha upper bound in theory: ', self.alpha_max, '\n',
               'running algorithm: ', self.algorithm_name, '\n')
 
     def _training(self, data_loader, client_weights, model):
@@ -412,7 +410,7 @@ class Algorithms:
             self.client_weights[n] = Trained_weights[n] - self.diffusion[n]
             # self.client_weights[n] = Trained_weights[n]
 
-    "MOTEF and MOTEF_VR require large batch size?"
+    "MOTEF and MOTEF_VR require large batch size? No"
     def MoTEF(self, iter_num, gamma, learning_rate, Lambda):  # Binary classification?
         weighted_H = self._averaged_choco(updates=self.neighbor_H, update=self.H)
         weighted_G = self._averaged_choco(updates=self.neighbor_G, update=self.G)

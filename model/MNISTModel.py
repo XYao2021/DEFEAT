@@ -81,28 +81,28 @@ class MNISTModel(nn.Module):  # Improve the model V0 with nonlinear activation f
 #         x = self.layer_6(x)
 #         return self.output(x)
 
-# class MNISTModel(nn.Module):
-#     def __init__(self):
-#         super(MNISTModel, self).__init__()
-#         # Input: 1 x 28 x 28 (grayscale image)
-#         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)   # Output: 32 x 28 x 28
-#         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)  # Output: 64 x 28 x 28
-#         self.pool = nn.MaxPool2d(2, 2)  # Reduces spatial dims by 2
-#         # self.dropout = nn.Dropout(0.25)
-#         # After two pooling operations: 28 -> 14 -> 7, so feature map: 64 x 7 x 7
-#         self.fc1 = nn.Linear(64 * 7 * 7, 128)
-#         self.fc2 = nn.Linear(128, 10)  # KMNIST has 10 classes
-#
-#     def forward(self, x):
-#         x = F.relu(self.conv1(x))
-#         x = self.pool(x)         # 32 x 14 x 14
-#         x = F.relu(self.conv2(x))
-#         x = self.pool(x)         # 64 x 7 x 7
-#         # x = self.dropout(x)
-#         x = x.view(x.size(0), -1)  # Flatten: (batch_size, 64*7*7)
-#         x = F.relu(self.fc1(x))
-#         # x = self.dropout(x)
-#         x = self.fc2(x)
-#         return x
+class KMNISTModel(nn.Module):
+    def __init__(self):
+        super(KMNISTModel, self).__init__()
+        # Input: 1 x 28 x 28 (grayscale image)
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)   # Output: 32 x 28 x 28
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)  # Output: 64 x 28 x 28
+        self.pool = nn.MaxPool2d(2, 2)  # Reduces spatial dims by 2
+        # self.dropout = nn.Dropout(0.25)
+        # After two pooling operations: 28 -> 14 -> 7, so feature map: 64 x 7 x 7
+        self.fc1 = nn.Linear(64 * 7 * 7, 128)
+        self.fc2 = nn.Linear(128, 10)  # KMNIST has 10 classes
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = self.pool(x)         # 32 x 14 x 14
+        x = F.relu(self.conv2(x))
+        x = self.pool(x)         # 64 x 7 x 7
+        # x = self.dropout(x)
+        x = x.view(x.size(0), -1)  # Flatten: (batch_size, 64*7*7)
+        x = F.relu(self.fc1(x))
+        # x = self.dropout(x)
+        x = self.fc2(x)
+        return x
 
 # topk 0.1 DEFD gamma=0.6 1000 iteration  Global Loss 0.0019440030446276069 | Training Accuracy | 0.9248166666666666 | Test Accuracy | 0.8343

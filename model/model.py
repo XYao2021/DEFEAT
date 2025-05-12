@@ -37,15 +37,17 @@ class Model:
         #     from model.MNISTModel import MNISTModel
         #     self.model = MNISTModel().to(device)
         elif model_name == 'KMNIST':
-            from model.MNISTModel import MNISTModel
-            self.model = MNISTModel().to(device)
+            from model.MNISTModel import KMNISTModel, MNISTModel
+            self.model = KMNISTModel().to(device)
+            # self.model = MNISTModel().to(device)
         # elif model_name == 'SVHN':
         #     from model.SVHNModel import SVHNModel
         #     self.model = SVHNModel().to(device)
         elif model_name == 'CIFAR10Model':
-            from model.CIFAR10Model import CIFAR10Model, ResNet20
+            from model.CIFAR10Model import CIFAR10Model, ResNet20, ModelCNNCifar10
             # self.model = CIFAR10Model().to(device)
-            self.model = ResNet20().to(device)
+            # self.model = ResNet20().to(device)
+            self.model = ModelCNNCifar10().to(device)
 
         if pretrained_model_file is not None:
             self.model.load_state_dict(torch.load(pretrained_model_file, map_location=device))

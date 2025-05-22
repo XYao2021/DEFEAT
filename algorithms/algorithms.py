@@ -40,11 +40,6 @@ class Algorithms:
         self.client_tmps = client_tmps
         self.neighbors_estimates = neighbors_estimates
 
-        # "AdaG"
-        # self.estimate_gossip_error = estimate_gossip_error
-        # self.current_weights = current_weights
-        # self.m_hat = m_hat
-
         "BEER"
         self.neighbor_H = neighbor_H
         self.neighbor_G = neighbor_G
@@ -66,31 +61,14 @@ class Algorithms:
         self.previous_X = client_weights
 
         "CEDAS"
-        # self.trained_weights = client_accumulates
         self.diffusion = client_accumulates  # zeros
         self.h = []  # initial model weights
         self.hw = []  # h_omega
-        # self.y_hat_plus = client_accumulates
-        # self.y = client_accumulates  # zeros
         self.updates = neighbors_accumulates
 
         "MOTEF"
-        # self.client_H = client_accumulates
-        # self.neighbors_H = neighbors_accumulates
-        # self.client_G = client_accumulates
-        # self.neighbors_G = neighbors_accumulates
-        # self.V = []
         self.M = []
-        # self.M = client_accumulates
         self.previous_M = client_accumulates
-
-        "Adaptive gamma in DEFD"
-        self.control = control
-        self.adaptive = adaptive
-        self.threshold = threshold
-        self.org_gamma = self.client_compressor[0].discount_parameter
-        self.old_error = [torch.zeros_like(self.client_weights[n]) for n in range(self.num_clients)]
-        self.gamma_tracking = [[] for i in range(self.num_clients)]
 
         "Testing parameter"
         self.Alpha = []
@@ -114,7 +92,6 @@ class Algorithms:
         model.assign_weights(weights=client_weights)
         model.model.train()
         for i in range(self.local_iter):
-            # images, labels = next(iter(data_loader))
             images, labels = data_loader
             images, labels = images.to(self.device), labels.to(self.device)
             if self.data_transform is not None:
@@ -122,7 +99,6 @@ class Algorithms:
 
             model.optimizer.zero_grad()
             pred = model.model(images)
-            # print(pred, len(pred))
             loss = model.loss_function(pred, labels)
             loss.backward()
             model.optimizer.step()
@@ -158,7 +134,7 @@ class Algorithms:
             return False
 
     "New idea without gradient tracking and momentum"
-    def NDEFD(self, iter_num, normalization):
+    def DEFEAT(self, iter_num, normalization):
         Averaged_weights = self._average_updates(updates=self.neighbor_models)
 
         learning_rate = self.models[0].learning_rate
@@ -178,16 +154,6 @@ class Algorithms:
             Vector_update += Averaged_weights[n]  # X_tW - eta*G(X_t)
             Vector_update -= self.client_weights[n]  # X_t(W-I) - eta*G(X_t)
 
-            if iter_num == 0:
-                error_norm = 1
-            else:
-                error_norm = torch.sum(torch.square(self.client_residuals[n])).item()
-
-            "Pre-adjustment"
-            if self.adaptive is True:
-                self.client_compressor[n].discount_parameter = min(np.sqrt(gradient_norm / (normalization * error_norm + epsilon)), 1.0)  # works well for topk
-            # self.gamma_tracking[n].append(self.client_compressor[n].discount_parameter)
-
             residual_errors = (1 - self.client_compressor[n].discount_parameter) * self.client_residuals[n]  # Equals to zero if gamma equals to 1.0
 
             "Compression Operator"  # Vector_update = v_t = C(b_t) | client_residual = e_(t+1) = b_t - v_t
@@ -205,15 +171,6 @@ class Algorithms:
 
         for n in range(self.num_clients):
             if self.control:
-                # qt = self.client_partition[n].get_q(iter_num)
-                # if np.random.binomial(1, qt) == 1:
-                #     Vector_update = self._training(data_loader=self.data_loaders[n],
-                #                                    client_weights=self.client_weights[n],
-                #                                    model=self.models[n])
-                #     Vector_update -= self.client_weights[n]  # gradient
-                #     Vector_update += Averaged_weights[n]
-                # else:
-                #     Vector_update = Averaged_weights[n]
                 pass
             else:
                 images, labels = next(iter(self.data_loaders[n]))
@@ -307,7 +264,6 @@ class Algorithms:
                     self.neighbor_G[m][self.neighbors[m].index(n)] += G_update
 
     def DeCoM(self, iter_num, gamma, learning_rate, beta):  # Have problem with Quantization compression
-        # s = 32
         for n in range(self.num_clients):
             if iter_num == 0:
                 images, labels = next(iter(self.data_loaders[n]))

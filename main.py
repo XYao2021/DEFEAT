@@ -143,7 +143,7 @@ if __name__ == '__main__':
             raise Exception('The Transfer Matrix Should be Symmetric')
         else:
             print(NETWORK, 'Transfer Matrix is Symmetric Matrix', '\n')
-        Transfer.Get_alpha_upper_bound_theory()
+        eigenvalues, Gaps = Transfer.Get_alpha_upper_bound_theory()
 
         test_model = Model(random_seed=seed, learning_rate=LEARNING_RATE, model_name=model_name, device=device, flatten_weight=True, pretrained_model_file=load_model_file)
         # Preparation for every vector variables
@@ -210,9 +210,11 @@ if __name__ == '__main__':
                 neighbors_accumulates.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
             if ALGORITHM == 'MoTEF' or 'MoTEF_VR' or 'NDEFD':
                 # client_tmps.append(model.get_weights().to(device))
-                neighbor_H.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
+                # neighbor_H.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
+                neighbor_H.append([model.get_weights().to(device) for i in range(len(Transfer.neighbors[n]))])
                 neighbor_G.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
-                H.append(torch.zeros_like(model.get_weights()).to(device))
+                # H.append(torch.zeros_like(model.get_weights()).to(device))
+                H.append(model.get_weights().to(device))
                 G.append(torch.zeros_like(model.get_weights()).to(device))
                 client_accumulate.append(torch.zeros_like(model.get_weights()).to(device))
             if ALGORITHM == 'BEER':
@@ -248,7 +250,7 @@ if __name__ == '__main__':
             elif ALGORITHM == 'CHOCO':
                 if iter_num == 0:
                     print('Algorithm CHOCO applied')
-                Algorithm.CHOCO(iter_num=iter_num, consensus=CONSENSUS_STEP)
+                Algorithm.CHOCO(iter_num=iter_num, consensus=DISCOUNT)  # replace consensus with gamma
             elif ALGORITHM == 'BEER':  # 1
                 if iter_num == 0:
                     print('Algorithm BEER applied')
@@ -277,8 +279,10 @@ if __name__ == '__main__':
             #     print(iter_num, i, Algorithm.models[i].get_weights())
 
             "Need to change the testing model to local model rather than global averaged model"
-            test_weights = average_weights([Algorithm.models[i].get_weights() for i in range(CLIENTS)])  # test with global averaged model
-            # test_weights = Algorithm.models[0].get_weights()  # test with local model
+            if TEST == 'average':
+                test_weights = average_weights([Algorithm.models[i].get_weights() for i in range(CLIENTS)])  # test with global averaged model
+            elif TEST == 'local':
+                test_weights = Algorithm.models[1].get_weights()  # test with local model
 
             train_loss, train_acc = test_model.accuracy(weights=test_weights, test_loader=train_loader, device=device)
             test_loss, test_acc = test_model.accuracy(weights=test_weights, test_loader=test_loader, device=device)
@@ -318,9 +322,9 @@ if __name__ == '__main__':
             # txt_list = [ACC, '\n', LOSS, '\n', ALPHAS, '\n', MAXES]
 
         if COMPRESSION == 'quantization':
-            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, QUANTIZE_LEVEL, DISCOUNT, ADAPTIVE, dataset, LEARNING_RATE, CONSENSUS_STEP, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, QUANTIZE_LEVEL, DISCOUNT, TEST, dataset, LEARNING_RATE, CONSENSUS_STEP, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
         elif COMPRESSION == 'topk' or 'randk':
-            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, RATIO, DISCOUNT, ADAPTIVE, dataset, LEARNING_RATE, CONSENSUS_STEP, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, RATIO, DISCOUNT, TEST, dataset, LEARNING_RATE, CONSENSUS_STEP, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
         else:
             raise Exception('Unknown compression method')
 

@@ -64,10 +64,10 @@ class CIFAR10Model(nn.Module):
         self.fc1.apply(init_weights)
 
     def forward(self, x):
-        print(x.shape)
+        # print(x.shape)
         conv_ = self.conv(x)
-        print(conv_.shape)
-        fc_ = conv_.view(-1, 8 * 8 * 32)
+        # print(conv_.shape)
+        fc_ = conv_.view(x.size(0), -1)
         fc1_ = self.fc1(fc_)
         output = self.fc2(fc1_)
         return output

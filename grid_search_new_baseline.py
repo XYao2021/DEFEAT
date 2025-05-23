@@ -21,7 +21,7 @@ if device != 'cpu':
     current_device = torch.cuda.current_device()
     torch.cuda.set_device(current_device)
 
-# device = 'cuda:{}'.format(CUDA_ID)
+device = 'cuda:{}'.format(CUDA_ID)
 
 if __name__ == '__main__':
     ACC = []

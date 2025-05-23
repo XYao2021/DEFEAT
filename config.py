@@ -41,6 +41,7 @@ parse.add_argument('-algorithm', type=str, default='NDEFD', help='machine learni
 parse.add_argument('-control', type=int, default=0, help='Apply control algorithm or not, 0 is not, 1 is true')
 parse.add_argument('-compression', type=str, default='quantization', help='compression method')
 parse.add_argument('-network', type=str, default='random', help='Network Topology')
+parse.add_argument('-test', type=str, default='average', help='test model: average / local')
 
 parse.add_argument('-store', type=int, default=1, help='Store the results or not (1 or 0)')
 parse.add_argument('-id', type=int, default=1, help='cuda id (0, 1, 2, 3)')
@@ -127,6 +128,7 @@ ADAPTIVE = args.adaptive
 THRESHOLD = args.threshold
 
 BETA = args.beta
+TEST = args.test
 
 # if COMPRESSION == 'topk':
 #     ADAPTIVE = True

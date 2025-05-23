@@ -21,7 +21,7 @@ if device != 'cpu':
     current_device = torch.cuda.current_device()
     torch.cuda.set_device(current_device)
 
-device = 'cuda:{}'.format(CUDA_ID)
+# device = 'cuda:{}'.format(CUDA_ID)
 
 # Suggest by reviewer: ReNet-20 with CIFAR10 and CIFAR100.
 

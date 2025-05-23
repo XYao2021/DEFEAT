@@ -21,7 +21,7 @@ if device != 'cpu':
     current_device = torch.cuda.current_device()
     torch.cuda.set_device(current_device)
 
-device = 'cuda:{}'.format(CUDA_ID)
+# device = 'cuda:{}'.format(CUDA_ID)
 
 if __name__ == '__main__':
     ACC = []
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     ALPHAS = []
     MAXES = []
 
-    Learning_rates = [0.001, 0.01, 0.0316, 0.056, 0.1]
+    Learning_rates = [0.001, 0.01, 0.02, 0.0316, 0.056, 0.1]
     if ALGORITHM == 'BEER':
         BETAS = [1]
         Gamma = [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5]
@@ -39,16 +39,16 @@ if __name__ == '__main__':
     #     Gamma = [0.1, 0.2, 0.3, 0.4, 0.5, 0.9]
     elif ALGORITHM == 'CEDAS':
         BETAS = [0.005, 0.01, 0.05]  # alpha
-        Gamma = [0.1, 0.3, 0.5, 0.7, 0.9]  # gamma
+        Gamma = [0.1, 0.2, 0.4, 0.6, 0.8, 0.9, 1.0]  # gamma
     elif ALGORITHM == 'MoTEF':
-        BETAS = [0.005, 0.01, 0.05, 0.1]  # Lambda
-        Gamma = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 0.9]  # gamma
+        BETAS = [0.005, 0.01, 0.02, 0.04, 0.06, 0.08, 0.1]  # Lambda
+        Gamma = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5]  # gamma
     elif ALGORITHM == 'NDEFD':
         BETAS = [1]  # Lambda
         if ADAPTIVE:
             Gamma = [1]
         else:
-            Gamma = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+            Gamma = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
     elif ALGORITHM == 'CHOCO':
         BETAS = [1]
         Gamma = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
@@ -56,13 +56,11 @@ if __name__ == '__main__':
         BETAS = [1]
         Gamma = [1]
 
-    possible_lr = []
-    loss_gamma = []
     print('Algorithm: ', ALGORITHM)
     print('Learning rate: ', Learning_rates)
     print('Lambda range: ', BETAS)
     print('Gamma range: ', Gamma)
-
+    Seed_set = [13]
     for seed in Seed_set:
         random.seed(seed)
         np.random.seed(seed)
@@ -122,13 +120,15 @@ if __name__ == '__main__':
         else:
             print('Transfer Matrix is Symmetric Matrix', '\n')
         Transfer.Get_alpha_upper_bound_theory()
-        LOSS_DCs = []
+        beta_loss = []
+        beta_lr = []
+        beta_cons = []
         for beta in BETAS:
-            beta_lr = []
-            beta_cons = []
-            beta_loss = []
+            gamma_lr = []
+            gamma_cons = []
+            gamma_loss = []
             for cons in range(len(Gamma)):
-                lr_dcs = []
+                lr_loss = []
                 for lr in range(len(Learning_rates)):
                     print('gamma / consensus: ', Gamma[cons], 'lr: ', Learning_rates[lr], 'beta: ', beta)
                     client_train_loader = []
@@ -292,59 +292,59 @@ if __name__ == '__main__':
 
                         global_loss.append(train_loss)
                         Test_acc.append(test_acc)
-                        lr_dc.append(train_loss)
+                        # lr_dc.append(train_loss)
                         print('SEED |', seed, '| iteration |', iter_num, '| Global Loss', train_loss, '| Training Accuracy |',
                               train_acc, '| Test Accuracy |', test_acc, '\n')
                         iter_num += 1
 
                         if iter_num >= AGGREGATION:
-                            # ACC += Test_acc
-                            # LOSS += global_loss
-                            ACC.append(Test_acc)
-                            LOSS.append(global_loss)
-                            # ALPHAS += Algorithm.Alpha
-                            # MAXES += Algorithm.max
-                            lr_dcs.append(lr_dc)
+                            lr_loss.append(global_loss)
                             break
                     del Models
                     del client_weights
-                LOSS_DCs.append(lr_dcs)
+
+                # print(cons, [sum(i[-10:])/len(i[-10:]) for i in lr_loss])
+                last_loss = [sum(i[-10:])/len(i[-10:]) for i in lr_loss]
+                best_index_lr = last_loss.index(min(last_loss))
+                gamma_lr.append(Learning_rates[best_index_lr])
+                gamma_loss.append(last_loss[best_index_lr])
+
                 torch.cuda.empty_cache()  # Clean the memory cache
+                print(ALGORITHM, beta,  Gamma[:cons+1], gamma_lr, gamma_loss)
+                txt_list = [ALGORITHM, 'beta: ', beta, '\n', 'gamma list: ', Gamma[:cons+1], '\n',
+                            'best learning rate list: ', gamma_lr, 'best loss list: ', gamma_loss]
+                # txt_list = np.array([beta, Gamma[cons], gamma_loss])
+                # f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, RATIO, QUANTIZE_LEVEL, DISCOUNT, NETWORK, CLIENTS,
+                #                                               NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+                # for item in txt_list:
+                #     f.write("%s\n" % item)
+                folder = './{}_{}_{}_{}_{}'.format(ALGORITHM, dataset, NETWORK, CLIENTS, NEIGHBORS)
+                os.makedirs(folder, exist_ok=True)
+                np.savetxt('./{}/grid_searching_{}_{}.txt'.format(folder, beta, Gamma[cons]), txt_list, fmt='%s')
 
-                loss_dc = [sum(i)/len(i) for i in LOSS_DCs[cons]]
-                possible_lr.append(Learning_rates[loss_dc.index(min(loss_dc))])
-                loss_gamma.append(min(loss_dc))
+            # print(beta, gamma_loss)
+            best_index_gamma = gamma_loss.index(min(gamma_loss))
+            best_gamma = Gamma[best_index_gamma]
+            best_lr = gamma_lr[best_index_gamma]
 
-            best_index = loss_gamma.index(min(loss_gamma))
-            best_gamma = Gamma[best_index]
-            best_lr = possible_lr[best_index]
-
-            beta_loss.append(loss_gamma[best_index])
+            beta_loss.append(gamma_loss[best_index_gamma])
             beta_lr.append(best_lr)
             beta_cons.append(best_gamma)
 
-        BEST_INDEX = beta_loss.index(min(beta_loss))
-        BEST_BETA = BETAS[BEST_INDEX]
-        BEST_LR = beta_lr[BEST_INDEX]
-        BEST_CONS = beta_cons[BEST_INDEX]
-        print(beta_loss, beta_lr, beta_cons)
-        print(ALGORITHM, 'Best pair of parameters: learning rate = {}, gamma = {}, beta = {}'.format(BEST_LR, BEST_CONS, BEST_BETA))
+        best_index_beta = beta_loss.index(min(beta_loss))
 
-    # plt.plot(range(len(Algorithm.Alpha)), Algorithm.Alpha, label='{}'.format(DISCOUNT))
-    # plt.legend()
-    # plt.show()
+        beta_beta = BETAS[best_index_beta]
+        beta_lr = beta_lr[best_index_beta]
+        beta_cons = beta_cons[best_index_beta]
+        print(beta_beta, beta_lr, beta_cons, beta_loss)
+        print(ALGORITHM, 'Best pair of parameters: learning rate = {}, gamma = {}, beta = {}'.format(beta_lr, beta_cons, beta_beta))
 
     if STORE == 1:
-        txt_list = [beta_loss, beta_lr, beta_cons, '\n', BEST_INDEX, BEST_BETA, BEST_LR, BEST_CONS]
-        # txt_list = [best_lr, best_gamma]
-    #     # txt_list = [ACC, '\n', LOSS]
-    #     # txt_list = [ACC, '\n', LOSS, '\n', ALPHAS]
-    #     txt_list = [LOSS_DCs, Learning_rates[loss_dc.index(min(loss_dc))]]
-    #     # txt_list = [ACC, '\n', LOSS, '\n', Algorithm.changes_ratio]
+        txt_list = [ALGORITHM, 'loss_list: ', beta_loss, '\n', 'best beta: ', beta_beta, '\n', 'best lr: ', beta_lr, '\n', 'best gamma: ', beta_cons]
         if COMPRESSION == 'quantization':
-            f = open('{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, QUANTIZE_LEVEL, DISCOUNT, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+            f = open('{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, QUANTIZE_LEVEL, DISCOUNT, NETWORK, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
         elif COMPRESSION == 'topk':
-            f = open('{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, RATIO, DISCOUNT, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+            f = open('{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, RATIO, DISCOUNT, NETWORK, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
         else:
             raise Exception('Unknown compression method')
 
@@ -352,13 +352,3 @@ if __name__ == '__main__':
             f.write("%s\n" % item)
     else:
         print('NOT STORE THE RESULTS THIS TIME')
-
-    # whole length of weights (top-k): 39760
-
-    # for repeat_time in range(1):
-    #     os.system('say "Mission Complete."')
-
-# 1. DeCoM / MOTEF paper: why MOTEF better than DeCoM since they share similar idea (think about why it works?)
-# 2. Add gradient tracking and momentum to DEFD (understand gradient tracking first and then add to DEFD)
-# 3. Asilomar paper
-

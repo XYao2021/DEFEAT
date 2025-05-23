@@ -46,7 +46,7 @@ class CIFAR10Model(nn.Module):
         )
 
         self.fc1 = nn.Sequential(
-            nn.Linear(8 * 8 * 32, 256),
+            nn.Linear(2 * 2 * 32, 256),
             nn.ReLU(),
             nn.Linear(256, 64),
             nn.ReLU(),

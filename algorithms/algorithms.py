@@ -158,7 +158,7 @@ class Algorithms:
             return False
 
     "New idea without gradient tracking and momentum"
-    def NDEFD(self, iter_num, normalization):
+    def DEFEAT(self, iter_num, normalization):
         Averaged_weights = self._average_updates(updates=self.neighbor_models)
 
         learning_rate = self.models[0].learning_rate

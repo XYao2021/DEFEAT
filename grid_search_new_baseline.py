@@ -20,8 +20,7 @@ from algorithms.algorithms import Algorithms
 if device != 'cpu':
     current_device = torch.cuda.current_device()
     torch.cuda.set_device(current_device)
-
-device = 'cuda:{}'.format(CUDA_ID)
+    device = 'cuda:{}'.format(CUDA_ID)
 
 if __name__ == '__main__':
     ACC = []
@@ -43,7 +42,7 @@ if __name__ == '__main__':
     elif ALGORITHM == 'MoTEF':
         BETAS = [0.005, 0.01, 0.02, 0.04, 0.06, 0.08, 0.1]  # Lambda
         Gamma = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5]  # gamma
-    elif ALGORITHM == 'NDEFD':
+    elif ALGORITHM == 'DEFEAT':
         BETAS = [1]  # Lambda
         if ADAPTIVE:
             Gamma = [1]
@@ -81,7 +80,7 @@ if __name__ == '__main__':
         else:
             raise Exception('This data distribution method has not been embedded')
 
-        if ALGORITHM == 'NDEFD':
+        if ALGORITHM == 'DEFEAT':
             #     # max_value = 0.2782602
             #     # min_value = -0.2472423
             # max_value = 0.5642
@@ -165,7 +164,7 @@ if __name__ == '__main__':
                         neighbor_updates.append([torch.zeros_like(model.get_weights()) for i in range(len(Transfer.neighbors[n]))])
 
                         if COMPRESSION == 'quantization':
-                            if ALGORITHM == 'NDEFD':
+                            if ALGORITHM == 'DEFEAT':
                                 DISCOUNT = np.sqrt(QUANTIZE_LEVEL)
                                 scale = 2 ** QUANTIZE_LEVEL - 1
                                 step = (max_value - min_value) / scale
@@ -247,13 +246,13 @@ if __name__ == '__main__':
 
                     while True:
                         # print('SEED ', '|', seed, '|', 'ITERATION ', iter_num)
-                        if ALGORITHM == 'NDEFD':
+                        if ALGORITHM == 'DEFEAT':
                             if ADAPTIVE:
                                 pass
                             else:
                                 for n in range(CLIENTS):
                                     client_compressor[n].discount_parameter = Gamma[cons]
-                            Algorithm.NDEFD(iter_num=iter_num, normalization=normalization)
+                            Algorithm.DEFEAT(iter_num=iter_num, normalization=normalization)
                         elif ALGORITHM == 'CHOCO':
                             Algorithm.CHOCO(iter_num=iter_num, consensus=Gamma[cons])
                         elif ALGORITHM == 'DCD':

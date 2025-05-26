@@ -20,8 +20,7 @@ from algorithms.algorithms import Algorithms
 if device != 'cpu':
     current_device = torch.cuda.current_device()
     torch.cuda.set_device(current_device)
-
-device = 'cuda:{}'.format(CUDA_ID)
+    device = 'cuda:{}'.format(CUDA_ID)
 
 # Suggest by reviewer: ReNet-20 with CIFAR10 and CIFAR100.
 
@@ -99,7 +98,7 @@ if __name__ == '__main__':
             "KMNIST"
             # max_value = 0.2222
             # min_value = -0.2274
-        elif ALGORITHM == 'NDEFD':
+        elif ALGORITHM == 'DEFEAT':
             max_value = 0.4066
             min_value = -0.2881
         elif ALGORITHM == 'DCD':
@@ -162,7 +161,7 @@ if __name__ == '__main__':
             if ALGORITHM == 'DCD':
                 DISCOUNT = 0
             if COMPRESSION == 'quantization':
-                if ALGORITHM == 'EFD' or 'NDEFD':
+                if ALGORITHM == 'EFD' or 'DEFEAT':
                     if ADAPTIVE:
                         # DISCOUNT = np.sqrt(QUANTIZE_LEVEL)
                         scale = 2 ** QUANTIZE_LEVEL - 1
@@ -239,8 +238,8 @@ if __name__ == '__main__':
 
         while True:
             # print('SEED ', '|', seed, '|', 'ITERATION ', iter_num, 'gamma ', DISCOUNT)
-            if ALGORITHM == 'NDEFD':
-                Algorithm.NDEFD(iter_num=iter_num, normalization=normalization)
+            if ALGORITHM == 'DEFEAT':
+                Algorithm.DEFEAT(iter_num=iter_num, normalization=normalization)
             # elif ALGORITHM == 'NDEFD1':
             #     Algorithm.NDEFD_with_g_or_m(iter_num=iter_num, normalization=normalization, beta=BETA, learning_rate=LEARNING_RATE)
             elif ALGORITHM == 'DCD':

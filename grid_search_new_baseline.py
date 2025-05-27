@@ -23,8 +23,6 @@ if device != 'cpu':
     device = 'cuda:{}'.format(CUDA_ID)
 
 if __name__ == '__main__':
-    ACC = []
-    LOSS = []
     COMM = []
     ALPHAS = []
     MAXES = []
@@ -59,76 +57,78 @@ if __name__ == '__main__':
     print('Learning rate: ', Learning_rates)
     print('Lambda range: ', BETAS)
     print('Gamma range: ', Gamma)
-    Seed_set = [13]
-    for seed in Seed_set:
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
+    # Seed_set = [13]
 
-        train_data, test_data = loading(dataset_name=dataset, data_path=dataset_path, device=device)
-        train_loader = DataLoader(train_data, batch_size=BATCH_SIZE_TEST, shuffle=True, num_workers=0)
-        test_loader = DataLoader(test_data, batch_size=BATCH_SIZE_TEST, shuffle=False, num_workers=0)
+    if ALGORITHM == 'DEFEAT':
+        #     # max_value = 0.2782602
+        #     # min_value = -0.2472423
+        # max_value = 0.5642
+        # min_value = -0.5123
+        max_value = 0.4066
+        min_value = -0.2881
+    elif ALGORITHM == 'DCD':
+        # max_value = 0.35543507
+        # min_value = -0.30671167
+        # max_value = 0.2208
+        # min_value = -0.1937
+        max_value = 0.4038
+        min_value = -0.2891
+    elif ALGORITHM == 'CHOCO':
+        max_value = 0.30123514
+        min_value = -0.21583036
+    elif ALGORITHM == 'BEER':
+        # max_value = 0.30123514
+        # min_value = -0.21583036
+        max_value = 3.6578
+        min_value = -3.3810
+    elif ALGORITHM == 'DeCoM':
+        max_value = 4.7449
+        min_value = -4.1620
+    elif ALGORITHM == 'CEDAS':
+        max_value = 0.0525
+        min_value = -0.0233
+    elif ALGORITHM == 'MoTEF':
+        max_value = 1.9098
+        min_value = -2.7054
 
-        Sample = Sampling(num_client=CLIENTS, num_class=len(train_data.classes), train_data=train_data,
-                          method='uniform', seed=seed, name=dataset)
-        if DISTRIBUTION == 'Dirichlet':
-            if ALPHA == 0:
-                client_data = Sample.DL_sampling_single()
-            elif ALPHA > 0:
-                client_data = Sample.Synthesize_sampling(alpha=ALPHA)
-        else:
-            raise Exception('This data distribution method has not been embedded')
+    for beta in BETAS:
+        gamma_lr = []
+        gamma_cons = []
+        gamma_loss = []
+        for cons in range(len(Gamma)):
+            lr_loss = []
+            for lr in range(len(Learning_rates)):
+                ACC = []
+                LOSS = []
+                for seed in Seed_set:
+                    print('---------------seed={}|beta={}|gamma={}|learning_rate={}----------------'.format(seed, beta, Gamma[cons], Learning_rates[lr]))
+                    random.seed(seed)
+                    np.random.seed(seed)
+                    torch.manual_seed(seed)
+                    torch.cuda.manual_seed(seed)
 
-        if ALGORITHM == 'DEFEAT':
-            #     # max_value = 0.2782602
-            #     # min_value = -0.2472423
-            # max_value = 0.5642
-            # min_value = -0.5123
-            max_value = 0.4066
-            min_value = -0.2881
-        elif ALGORITHM == 'DCD':
-            # max_value = 0.35543507
-            # min_value = -0.30671167
-            # max_value = 0.2208
-            # min_value = -0.1937
-            max_value = 0.4038
-            min_value = -0.2891
-        elif ALGORITHM == 'CHOCO':
-            max_value = 0.30123514
-            min_value = -0.21583036
-        elif ALGORITHM == 'BEER':
-            # max_value = 0.30123514
-            # min_value = -0.21583036
-            max_value = 3.6578
-            min_value = -3.3810
-        elif ALGORITHM == 'DeCoM':
-            max_value = 4.7449
-            min_value = -4.1620
-        elif ALGORITHM == 'CEDAS':
-            max_value = 0.0525
-            min_value = -0.0233
-        elif ALGORITHM == 'MoTEF':
-            max_value = 1.9098
-            min_value = -2.7054
+                    train_data, test_data = loading(dataset_name=dataset, data_path=dataset_path, device=device)
+                    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE_TEST, shuffle=True, num_workers=0)
+                    test_loader = DataLoader(test_data, batch_size=BATCH_SIZE_TEST, shuffle=False, num_workers=0)
 
-        Transfer = Transform(num_nodes=CLIENTS, num_neighbors=NEIGHBORS, seed=seed, network=NETWORK)
-        check = Check_Matrix(CLIENTS, Transfer.matrix)
-        if check != 0:
-            raise Exception('The Transfer Matrix Should be Symmetric')
-        else:
-            print('Transfer Matrix is Symmetric Matrix', '\n')
-        Transfer.Get_alpha_upper_bound_theory()
-        beta_loss = []
-        beta_lr = []
-        beta_cons = []
-        for beta in BETAS:
-            gamma_lr = []
-            gamma_cons = []
-            gamma_loss = []
-            for cons in range(len(Gamma)):
-                lr_loss = []
-                for lr in range(len(Learning_rates)):
+                    Sample = Sampling(num_client=CLIENTS, num_class=len(train_data.classes), train_data=train_data,
+                                      method='uniform', seed=seed, name=dataset)
+                    if DISTRIBUTION == 'Dirichlet':
+                        if ALPHA == 0:
+                            client_data = Sample.DL_sampling_single()
+                        elif ALPHA > 0:
+                            client_data = Sample.Synthesize_sampling(alpha=ALPHA)
+                    else:
+                        raise Exception('This data distribution method has not been embedded')
+
+                    Transfer = Transform(num_nodes=CLIENTS, num_neighbors=NEIGHBORS, seed=seed, network=NETWORK)
+                    check = Check_Matrix(CLIENTS, Transfer.matrix)
+                    if check != 0:
+                        raise Exception('The Transfer Matrix Should be Symmetric')
+                    else:
+                        print('Transfer Matrix is Symmetric Matrix', '\n')
+                    Transfer.Get_alpha_upper_bound_theory()
+
                     print('gamma / consensus: ', Gamma[cons], 'lr: ', Learning_rates[lr], 'beta: ', beta)
                     client_train_loader = []
                     client_residual = []
@@ -298,56 +298,65 @@ if __name__ == '__main__':
 
                         if iter_num >= AGGREGATION:
                             lr_loss.append(global_loss)
+                            ACC += Test_acc
+                            LOSS += global_loss
                             break
                     del Models
                     del client_weights
 
-                # print(cons, [sum(i[-10:])/len(i[-10:]) for i in lr_loss])
-                last_loss = [sum(i[-10:])/len(i[-10:]) for i in lr_loss]
-                best_index_lr = last_loss.index(min(last_loss))
-                gamma_lr.append(Learning_rates[best_index_lr])
-                gamma_loss.append(last_loss[best_index_lr])
+                folder = './{}_{}_{}_{}_{}'.format(ALGORITHM, dataset, NETWORK, CLIENTS, NEIGHBORS, COMPRESSION)
+                txt_list_lr = [LOSS, '\n', ACC]
+                os.makedirs(folder, exist_ok=True)
+                if COMPRESSION == 'topk':
+                    np.savetxt('./{}/{}_{}_{}_{}_{}_{}.txt'.format(folder, ALGORITHM, COMPRESSION, RATIO, beta, Gamma[cons], Learning_rates[lr]), txt_list_lr, fmt='%s')
+                elif COMPRESSION == 'quantization':
+                    np.savetxt('./{}/{}_{}_{}_{}_{}_{}.txt'.format(folder, ALGORITHM, COMPRESSION, QUANTIZE_LEVEL, beta, Gamma[cons], Learning_rates[lr]), txt_list_lr, fmt='%s')
+
+                # last_loss = [sum(i[-10:])/len(i[-10:]) for i in lr_loss]
+                # best_index_lr = last_loss.index(min(last_loss))
+                # gamma_lr.append(Learning_rates[best_index_lr])
+                # gamma_loss.append(last_loss[best_index_lr])
 
                 torch.cuda.empty_cache()  # Clean the memory cache
-                print(ALGORITHM, beta,  Gamma[:cons+1], gamma_lr, gamma_loss)
-                txt_list = [ALGORITHM, 'beta: ', beta, '\n', 'gamma list: ', Gamma[:cons+1], '\n',
-                            'best learning rate list: ', gamma_lr, 'best loss list: ', gamma_loss]
-                # txt_list = np.array([beta, Gamma[cons], gamma_loss])
-                # f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, RATIO, QUANTIZE_LEVEL, DISCOUNT, NETWORK, CLIENTS,
-                #                                               NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
-                # for item in txt_list:
-                #     f.write("%s\n" % item)
-                folder = './{}_{}_{}_{}_{}'.format(ALGORITHM, dataset, NETWORK, CLIENTS, NEIGHBORS)
-                os.makedirs(folder, exist_ok=True)
-                np.savetxt('./{}/grid_searching_{}_{}.txt'.format(folder, beta, Gamma[cons]), txt_list, fmt='%s')
+        #         print(ALGORITHM, beta,  Gamma[:cons+1], gamma_lr, gamma_loss)
+        #         txt_list = [ALGORITHM, 'beta: ', beta, '\n', 'gamma list: ', Gamma[:cons+1], '\n',
+        #                     'best learning rate list: ', gamma_lr, 'best loss list: ', gamma_loss]
+        #         # txt_list = np.array([beta, Gamma[cons], gamma_loss])
+        #         # f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, RATIO, QUANTIZE_LEVEL, DISCOUNT, NETWORK, CLIENTS,
+        #         #                                               NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+        #         # for item in txt_list:
+        #         #     f.write("%s\n" % item)
+        #         folder = './{}_{}_{}_{}_{}'.format(ALGORITHM, dataset, NETWORK, CLIENTS, NEIGHBORS)
+        #         os.makedirs(folder, exist_ok=True)
+        #         np.savetxt('./{}/grid_searching_{}_{}.txt'.format(folder, beta, Gamma[cons]), txt_list, fmt='%s')
+        #
+        #     # print(beta, gamma_loss)
+        #     best_index_gamma = gamma_loss.index(min(gamma_loss))
+        #     best_gamma = Gamma[best_index_gamma]
+        #     best_lr = gamma_lr[best_index_gamma]
+        #
+        #     beta_loss.append(gamma_loss[best_index_gamma])
+        #     beta_lr.append(best_lr)
+        #     beta_cons.append(best_gamma)
+        #
+        # best_index_beta = beta_loss.index(min(beta_loss))
+        #
+        # beta_beta = BETAS[best_index_beta]
+        # beta_lr = beta_lr[best_index_beta]
+        # beta_cons = beta_cons[best_index_beta]
+        # print(beta_beta, beta_lr, beta_cons, beta_loss)
+        # print(ALGORITHM, 'Best pair of parameters: learning rate = {}, gamma = {}, beta = {}'.format(beta_lr, beta_cons, beta_beta))
 
-            # print(beta, gamma_loss)
-            best_index_gamma = gamma_loss.index(min(gamma_loss))
-            best_gamma = Gamma[best_index_gamma]
-            best_lr = gamma_lr[best_index_gamma]
-
-            beta_loss.append(gamma_loss[best_index_gamma])
-            beta_lr.append(best_lr)
-            beta_cons.append(best_gamma)
-
-        best_index_beta = beta_loss.index(min(beta_loss))
-
-        beta_beta = BETAS[best_index_beta]
-        beta_lr = beta_lr[best_index_beta]
-        beta_cons = beta_cons[best_index_beta]
-        print(beta_beta, beta_lr, beta_cons, beta_loss)
-        print(ALGORITHM, 'Best pair of parameters: learning rate = {}, gamma = {}, beta = {}'.format(beta_lr, beta_cons, beta_beta))
-
-    if STORE == 1:
-        txt_list = [ALGORITHM, 'loss_list: ', beta_loss, '\n', 'best beta: ', beta_beta, '\n', 'best lr: ', beta_lr, '\n', 'best gamma: ', beta_cons]
-        if COMPRESSION == 'quantization':
-            f = open('{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, QUANTIZE_LEVEL, DISCOUNT, NETWORK, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
-        elif COMPRESSION == 'topk':
-            f = open('{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, RATIO, DISCOUNT, NETWORK, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
-        else:
-            raise Exception('Unknown compression method')
-
-        for item in txt_list:
-            f.write("%s\n" % item)
-    else:
-        print('NOT STORE THE RESULTS THIS TIME')
+    # if STORE == 1:
+    #     txt_list = [ALGORITHM, 'loss_list: ', beta_loss, '\n', 'best beta: ', beta_beta, '\n', 'best lr: ', beta_lr, '\n', 'best gamma: ', beta_cons]
+    #     if COMPRESSION == 'quantization':
+    #         f = open('{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, QUANTIZE_LEVEL, DISCOUNT, NETWORK, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+    #     elif COMPRESSION == 'topk':
+    #         f = open('{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, RATIO, DISCOUNT, NETWORK, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+    #     else:
+    #         raise Exception('Unknown compression method')
+    #
+    #     for item in txt_list:
+    #         f.write("%s\n" % item)
+    # else:
+    #     print('NOT STORE THE RESULTS THIS TIME')

@@ -183,10 +183,57 @@ class Algorithms:
             else:
                 error_norm = torch.sum(torch.square(self.client_residuals[n])).item()
 
-            # "Pre-adjustment"
-            # if self.adaptive is True:
-            #     self.client_compressor[n].discount_parameter = min(np.sqrt(gradient_norm / (normalization * error_norm + epsilon)), 1.0)  # works well for topk
-            # # self.gamma_tracking[n].append(self.client_compressor[n].discount_parameter)
+            residual_errors = (1 - self.client_compressor[n].discount_parameter) * self.client_residuals[n]  # Equals to zero if gamma equals to 1.0
+
+            "Compression Operator"  # Vector_update = v_t = C(b_t) | client_residual = e_(t+1) = b_t - v_t
+            Vector_update, self.client_residuals[n] = self.client_compressor[n].get_trans_bits_and_residual(iter=iter_num, w_tmp=Vector_update, w_residual=self.client_residuals[n], device=self.device, neighbors=self.neighbors[n])
+
+            self.client_residuals[n] += residual_errors  # e_(t+1) = b_t - v_t + (1-gamma)*e_t
+
+            self.client_weights[n] += Vector_update  # x_(t+1) = x_t + v_t
+            for m in range(self.num_clients):
+                if n in self.neighbors[m]:
+                    self.neighbor_models[m][self.neighbors[m].index(n)] += Vector_update
+
+    def DEFEAT_C(self, iter_num, normalization):
+        Averaged_weights = self._average_updates(updates=self.neighbor_models)
+
+        learning_rate = self.models[0].learning_rate
+        error_ratio_i = []
+        epsilon = 0.000000000001  # noise: make sure not divide or multiple with zero.
+
+        for n in range(self.num_clients):
+            images, labels = next(iter(self.data_loaders[n]))
+            Vector_update = self._training(data_loader=[images, labels],
+                                           client_weights=self.client_weights[n], model=self.models[n])
+            Vector_update -= self.client_weights[n]  # -eta*G(X_t)
+
+            gradient = Vector_update
+            gradient_norm = torch.sum(torch.square(gradient)).item()
+
+            # gradient = Vector_update / learning_rate
+            # gradient_norm = torch.sum(torch.square(gradient)).item()
+
+            # gradient_and_error_norm = torch.sum(torch.square(Vector_update + self.client_residuals[n])).item()
+
+            Vector_update += Averaged_weights[n]  # X_tW - eta*G(X_t)
+            Vector_update -= self.client_weights[n]  # X_t(W-I) - eta*G(X_t)
+
+            if iter_num == 0:
+                error_norm = 1
+            else:
+                error_norm = torch.sum(torch.square(self.client_residuals[n])).item()
+
+            # print(iter_num, n, 'gradient norm: ', gradient_norm, '|',  'Error norm: ', error_norm, '|',
+            #       'computed gamma: ', min(np.sqrt(gradient_norm * normalization / (error_norm + epsilon)), 1.0))
+            # print(iter_num, n, 'gradient norm: ', gradient_norm, '|', 'Error norm: ', error_norm, '|',
+            #       'computed gamma: ', min(np.sqrt(gradient_norm / ((error_norm / normalization) + epsilon)), 1.0))
+
+            "Pre-adjustment"
+            if self.adaptive is True:
+                # self.client_compressor[n].discount_parameter = min(np.sqrt(gradient_norm / ((error_norm / normalization) + epsilon)), 1.0)  # works well for topk
+                self.client_compressor[n].discount_parameter = min(np.sqrt(gradient_norm * normalization / (error_norm + epsilon)), 1.0)
+            # self.gamma_tracking[n].append(self.client_compressor[n].discount_parameter)
 
             residual_errors = (1 - self.client_compressor[n].discount_parameter) * self.client_residuals[n]  # Equals to zero if gamma equals to 1.0
 

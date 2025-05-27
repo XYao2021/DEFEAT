@@ -101,6 +101,9 @@ if __name__ == '__main__':
         elif ALGORITHM == 'DEFEAT':
             max_value = 0.4066
             min_value = -0.2881
+        elif ALGORITHM == 'DEFEAT_C':
+            max_value = 0.4066
+            min_value = -0.2881
         elif ALGORITHM == 'DCD':
             # max_value = 0.35543507
             # min_value = -0.30671167
@@ -161,15 +164,17 @@ if __name__ == '__main__':
             if ALGORITHM == 'DCD':
                 DISCOUNT = 0
             if COMPRESSION == 'quantization':
-                if ALGORITHM == 'EFD' or 'DEFEAT':
+                if ALGORITHM == 'DEFEAT' or 'DEFEAT_C':
                     if ADAPTIVE:
                         # DISCOUNT = np.sqrt(QUANTIZE_LEVEL)
                         scale = 2 ** QUANTIZE_LEVEL - 1
                         step = (max_value - min_value) / scale
                         normalization = step
                         model_size = len(client_weights[n])
-                        print(step, step**2, (step/2)**2, model_size, step**2 * model_size, (step/2)**2 * model_size)
-                        normalization = (step/2)**2
+                        print(step**2 * model_size, (step/2)**2 * model_size, model_size)
+                        # normalization = (step) ** 2 * model_size
+                        # normalization = (step / 2) ** 2 * model_size
+                        normalization = model_size
                     else:
                         normalization = 1
                 if CONTROL is True:
@@ -240,8 +245,8 @@ if __name__ == '__main__':
             # print('SEED ', '|', seed, '|', 'ITERATION ', iter_num, 'gamma ', DISCOUNT)
             if ALGORITHM == 'DEFEAT':
                 Algorithm.DEFEAT(iter_num=iter_num, normalization=normalization)
-            # elif ALGORITHM == 'NDEFD1':
-            #     Algorithm.NDEFD_with_g_or_m(iter_num=iter_num, normalization=normalization, beta=BETA, learning_rate=LEARNING_RATE)
+            elif ALGORITHM == 'DEFEAT_C':
+                Algorithm.DEFEAT_C(iter_num=iter_num, normalization=normalization)
             elif ALGORITHM == 'DCD':
                 if iter_num == 0:
                     print('Algorithm DCD applied')

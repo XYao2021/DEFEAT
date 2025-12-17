@@ -212,31 +212,31 @@ def loading(dataset_name, data_path, device):
         transform = transforms.Compose([transforms.ToTensor(),
                                         transforms.Normalize((0.1307,), (0.3081,))])
         train_data = FashionMNISTEnhanced(data_path, transform=transform, download=True, device=device)
-        test_data = FashionMNISTEnhanced(data_path, train=False, transform=transform, device=device)
+        test_data = FashionMNISTEnhanced(data_path, train=True, transform=transform, device=device)
 
     elif dataset_name == 'MNIST':
         transform = transforms.Compose([transforms.ToTensor(),
                                         transforms.Normalize((0.1307,), (0.3081,))])
         train_data = MNISTEnhanced(data_path, transform=transform, download=True, device=device)
-        test_data = MNISTEnhanced(data_path, train=False, transform=transform, device=device)
+        test_data = MNISTEnhanced(data_path, train=True, transform=transform, device=device)
 
     elif dataset_name == 'EMNIST':
         transform = transforms.Compose([transforms.ToTensor(),
                                         transforms.Normalize((0.1307,), (0.3081,))])
         train_data = EMNISTEnhanced(data_path, transform=transform, download=True, device=device)
-        test_data = EMNISTEnhanced(data_path, train=False, transform=transform, device=device)
+        test_data = EMNISTEnhanced(data_path, train=True, transform=transform, device=device)
 
     elif dataset_name == 'QMNIST':
         transform = transforms.Compose([transforms.ToTensor(),
                                         transforms.Normalize((0.1307,), (0.3081,))])
         train_data = QMNISTEnhanced(data_path, transform=transform, download=True, device=device)
-        test_data = QMNISTEnhanced(data_path, train=False, transform=transform, device=device)
+        test_data = QMNISTEnhanced(data_path, train=True, transform=transform, device=device)
 
     elif dataset_name == 'KMNIST':
         transform = transforms.Compose([transforms.ToTensor(),
                                         transforms.Normalize((0.1307,), (0.3081,))])
         train_data = KMNISTEnhanced(data_path, transform=transform, download=True, device=device)
-        test_data = KMNISTEnhanced(data_path, train=False, transform=transform, device=device)
+        test_data = KMNISTEnhanced(data_path, train=True, transform=transform, device=device)
 
     elif dataset_name == 'SVHN':
         transform = transforms.Compose([transforms.ToTensor(),
@@ -246,10 +246,27 @@ def loading(dataset_name, data_path, device):
         train_data = torchvision.datasets.SVHN(root='./data', split='train', transform=transforms.ToTensor(), download=True)
         test_data = torchvision.datasets.SVHN('./data', split='test', transform=transform, download=True)
     elif dataset_name == 'CIFAR10':
-        transform = transforms.Compose([transforms.ToTensor(),
-                                        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
-        train_data = CIFAR10Enhanced(data_path, transform=transform, download=True, device=device)
-        test_data = CIFAR10Enhanced(data_path, transform=transform, train=False, device=device)
+        # transform = transforms.Compose([transforms.ToTensor(),
+        #                                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+        # CIFAR-10 normalization values
+        mean = [0.4914, 0.4822, 0.4465]
+        std = [0.2470, 0.2435, 0.2616]
+
+        # Training data augmentation
+        transform_train = transforms.Compose([transforms.RandomCrop(32, padding=4),
+                                                transforms.RandomHorizontalFlip(),
+                                                transforms.ToTensor(),
+                                                transforms.Normalize(mean, std)])
+
+        # Test data (no augmentation)
+        transform_test = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean, std)])
+
+        # train_data = CIFAR10Enhanced(data_path, transform=transform_train, download=True, device=device)
+        # test_data = CIFAR10Enhanced(data_path, transform=transform_test, train=True, device=device)
+
+        trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
+        testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
+
     else:
         raise Exception('Unknown dataset')
 

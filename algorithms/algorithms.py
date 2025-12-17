@@ -6,126 +6,76 @@ import copy
 import time
 
 class Algorithms:
-    def __init__(self, name=None, iter_round=None, device=None,
-                 data_transform=None, num_clients=None, client_weights=None,
-                 client_residuals=None, client_accumulates=None, client_compressors=None,
-                 models=None, data_loaders=None, transfer=None, neighbor_models=None,
-                 neighbors_accumulates=None, client_tmps=None, neighbors_estimates=None,
-                 client_partition=None, control=False, alpha_max=None, compression_method=None,
-                 estimate_gossip_error=None, current_weights=None, m_hat=None, adaptive=False, threshold=None,
-                 H=None, G=None, neighbor_H=None, neighbor_G=None):
+    def __init__(self, algorithm=None, compression=None, num_nodes=None, neighbors=None, models=None, data_transform=None,
+                 device=None, self_weights=None, neighbor_weights=None, data_loader=None, learning_rate=None,
+                 compressors=None, gamma=None, residual_errors=None, self_accumulate_update=None, neighbor_accumulate_update=None,
+                 self_H=None, neighbor_H=None, self_G=None, neighbor_G=None, lamda=None, self_update=None,
+                 neighbor_update=None, average_rate=None, normalization=None):
         super().__init__()
-        self.algorithm_name = name
-        self.local_iter = iter_round
+
+        "Common"
+        self.name = algorithm
+        self.compression = compression
+        self.num_clients = num_nodes
+        self.neighbors = neighbors
         self.device = device
         self.data_transform = data_transform
-        self.num_clients = num_clients
 
-        self.client_weights = client_weights
-        self.client_residuals = client_residuals
-        self.client_residuals_g = copy.deepcopy(client_residuals)
-        self.client_compressor = client_compressors
         self.models = models
-        self.data_loaders = data_loaders
-        self.transfer = transfer
-        self.neighbors = self.transfer.neighbors
-        self.neighbor_models = neighbor_models
-        self.client_partition = client_partition
-        self.client_history = self.client_residuals
-        self.initial_error_norm = None
+        self.self_weights = self_weights
+        self.data_loaders = data_loader
+        self.learning_rate = learning_rate
+        self.compressors = compressors
+
+        "DEFEAT / DEFEAT_Ada"
+        self.gamma = gamma
+        self.residual_errors = residual_errors
+        self.neighbor_weights = neighbor_weights
+
+        "DCD"
 
         "CHOCO"
-        self.client_accumulates = client_accumulates
-        self.neighbor_accumulates = neighbors_accumulates
-        self.client_tmps = client_tmps
-        self.neighbors_estimates = neighbors_estimates
-
-        # "AdaG"
-        # self.estimate_gossip_error = estimate_gossip_error
-        # self.current_weights = current_weights
-        # self.m_hat = m_hat
+        self.self_accumulate_update = self_accumulate_update
+        self.neighbor_accumulate_update = neighbor_accumulate_update
+        self.consensus = gamma
 
         "BEER"
+        self.self_H = self_H
         self.neighbor_H = neighbor_H
+        self.self_G = self_G
         self.neighbor_G = neighbor_G
-        self.H = H
-        self.G = G
-        self.V = []
-        self.neighbor_V = copy.deepcopy(neighbor_G)
-        self.previous_gradients = []
-
-        "DeCoM"
-        self.gradients = []
-        self.gradients_tmp = []
-        self.client_theta_hat = client_weights  # initial is model weights
-        self.neighbors_theta_hat = neighbor_models  # initials are model weights
-        self.client_g_hat = client_accumulates  # initials are zero
-        self.neighbors_g_hat = neighbors_accumulates  # initials are zeros
-        self.v = []  # gradient estimate
-        self.previous_V = []
-        self.previous_X = client_weights
-
-        "CEDAS"
-        # self.trained_weights = client_accumulates
-        self.diffusion = client_accumulates  # zeros
-        self.h = []  # initial model weights
-        self.hw = []  # h_omega
-        # self.y_hat_plus = client_accumulates
-        # self.y = client_accumulates  # zeros
-        self.updates = neighbors_accumulates
+        self.self_V = []
+        self.previous_gradient = []
 
         "MOTEF"
-        # self.client_H = client_accumulates
-        # self.neighbors_H = neighbors_accumulates
-        # self.client_G = client_accumulates
-        # self.neighbors_G = neighbors_accumulates
-        # self.V = []
-        self.M = []
-        # self.M = client_accumulates
-        self.previous_M = client_accumulates
+        self.self_M = []
+        self.lamda = lamda
 
-        "Adaptive gamma in DEFD"
-        self.control = control
-        self.adaptive = adaptive
-        self.threshold = threshold
-        self.org_gamma = self.client_compressor[0].discount_parameter
-        self.old_error = [torch.zeros_like(self.client_weights[n]) for n in range(self.num_clients)]
-        self.gamma_tracking = [[] for i in range(self.num_clients)]
+        "DeepSqueeze"
+        self.self_update = self_update
+        self.neighbor_update = neighbor_update
+        self.average_rate = average_rate
+        self.tmp_weights = self_update
 
-        "Testing parameter"
-        self.Alpha = []
-        self.alpha_max = alpha_max
-        self.compression_method = compression_method
-        self.changes_ratio = []
-        "Debugging parameters"
-        self.max = []
-        self.change_iter_num = []
-        self.error_mag = []
-        self.error_ratio = []
-        self.logger()
-        self.gamma = 1
-        # self.coefficient = torch.ones_like(self.models[0])
+    def _logger(self):
+        print(' compression method:', self.compression, '\n',
+              'running algorithm: ', self.name, '\n')
 
-    def logger(self):
-        print(' compression method:', self.compression_method, '\n',
-              'running algorithm: ', self.algorithm_name, '\n')
-
-    def _training(self, data_loader, client_weights, model):
+    def _training(self, data_loader, client_weights, model):  # Only consider 1 inner iteration per aggregation
         model.assign_weights(weights=client_weights)
         model.model.train()
-        for i in range(self.local_iter):
-            # images, labels = next(iter(data_loader))
-            images, labels = data_loader
-            images, labels = images.to(self.device), labels.to(self.device)
-            if self.data_transform is not None:
-                images = self.data_transform(images)
 
-            model.optimizer.zero_grad()
-            pred = model.model(images)
-            # print(pred, len(pred))
-            loss = model.loss_function(pred, labels)
-            loss.backward()
-            model.optimizer.step()
+        images, labels = data_loader
+        images, labels = images.to(self.device), labels.to(self.device)
+
+        # if self.data_transform is not None:
+        #     images = self.data_transform(images)
+
+        model.optimizer.zero_grad()
+        pred = model.model(images)
+        loss = model.loss_function(pred, labels)
+        loss.backward()
+        model.optimizer.step()
 
         trained_model = model.get_weights()  # x_t - \eta * gradients
         return trained_model
@@ -135,6 +85,15 @@ class Algorithms:
         for i in range(self.num_clients):
             Averaged_weights.append(sum(updates[i]) / len(updates[i]))
         return Averaged_weights
+
+    def _averaged_choco(self, updates, update):
+        Averaged = []
+        for i in range(self.num_clients):
+            summation = torch.zeros_like(update[0])
+            for j in range(len(updates[i])):
+                summation += (1/len(updates[i])) * (updates[i][j] - update[i])
+            Averaged.append(summation)
+        return Averaged
 
     def _check_weights(self, client_weights, neighbors_weights):
         checks = 0
@@ -157,414 +116,189 @@ class Algorithms:
         else:
             return False
 
-    "New idea without gradient tracking and momentum"
-    def DEFEAT(self, iter_num, normalization):
-        Averaged_weights = self._average_updates(updates=self.neighbor_models)
-
-        learning_rate = self.models[0].learning_rate
-        error_ratio_i = []
-        epsilon = 0.000000000001  # noise: make sure not divide or multiple with zero.
-
+    def DEFEAT(self, iter_num):
+        weighted_average = self._average_updates(updates=self.neighbor_weights)
         for n in range(self.num_clients):
             images, labels = next(iter(self.data_loaders[n]))
-            Vector_update = self._training(data_loader=[images, labels],
-                                           client_weights=self.client_weights[n], model=self.models[n])
-            Vector_update -= self.client_weights[n]  # -eta*G(X_t)
+            trained_weights = self._training(data_loader=[images, labels],
+                                           client_weights=self.self_weights[n], model=self.models[n])
+            gradients = trained_weights - self.self_weights[n]  # - eta * gradients
+            print(torch.sum(torch.square(gradients)))
 
-            gradient = Vector_update
-            gradient_norm = torch.sum(torch.square(Vector_update)).item()
-            gradient_and_error_norm = torch.sum(torch.square(Vector_update + self.client_residuals[n])).item()
+            b_t = weighted_average[n] - self.self_weights[n] + gradients + self.gamma * self.residual_errors[n]
+            v_t, current_residual = self.compressors[n].get_trans_bits_and_residual(w_tmp=b_t)
 
-            Vector_update += Averaged_weights[n]  # X_tW - eta*G(X_t)
-            Vector_update -= self.client_weights[n]  # X_t(W-I) - eta*G(X_t)
+            self.residual_errors[n] = current_residual + (1 - self.gamma) * self.residual_errors[n]
+            self.self_weights[n] += v_t
+            for m in range(self.num_clients):
+                if n in self.neighbors[m]:
+                    self.neighbor_weights[m][self.neighbors[m].index(n)] += v_t
+
+    def DEFEAT_ada(self, iter_num):
+        epsilon = 0.000000000001
+        weighted_average = self._average_updates(updates=self.neighbor_weights)
+        for n in range(self.num_clients):
+            images, labels = next(iter(self.data_loaders[n]))
+            trained_weights = self._training(data_loader=[images, labels],
+                                             client_weights=self.self_weights[n], model=self.models[n])
+            gradients = trained_weights - self.self_weights[n]  # - eta * gradients
 
             if iter_num == 0:
                 error_norm = 1
             else:
-                error_norm = torch.sum(torch.square(self.client_residuals[n])).item()
+                error_norm = torch.sum(torch.square(self.residual_errors[n])).item()
 
-            residual_errors = (1 - self.client_compressor[n].discount_parameter) * self.client_residuals[n]  # Equals to zero if gamma equals to 1.0
+            # gamma = min(np.sqrt(torch.sum(torch.square(gradients)).item() / (error_norm + epsilon)), 0.3)
+            # print(iter_num, n, gamma)
+            gamma = min(max(np.sqrt(torch.sum(torch.square(gradients)).item() / (error_norm + epsilon)), 0.3), 1.7)
 
-            "Compression Operator"  # Vector_update = v_t = C(b_t) | client_residual = e_(t+1) = b_t - v_t
-            Vector_update, self.client_residuals[n] = self.client_compressor[n].get_trans_bits_and_residual(iter=iter_num, w_tmp=Vector_update, w_residual=self.client_residuals[n], device=self.device, neighbors=self.neighbors[n])
+            b_t = weighted_average[n] - self.self_weights[n] + gradients + gamma * self.residual_errors[n]
+            v_t, current_residual = self.compressors[n].get_trans_bits_and_residual(w_tmp=b_t)
 
-            self.client_residuals[n] += residual_errors  # e_(t+1) = b_t - v_t + (1-gamma)*e_t
-
-            self.client_weights[n] += Vector_update  # x_(t+1) = x_t + v_t
+            self.residual_errors[n] = current_residual + (1 - gamma) * self.residual_errors[n]
+            self.self_weights[n] += v_t
             for m in range(self.num_clients):
                 if n in self.neighbors[m]:
-                    self.neighbor_models[m][self.neighbors[m].index(n)] += Vector_update
-
-    def DEFEAT_C(self, iter_num, normalization):
-        Averaged_weights = self._average_updates(updates=self.neighbor_models)
-
-        learning_rate = self.models[0].learning_rate
-        error_ratio_i = []
-        epsilon = 0.000000000001  # noise: make sure not divide or multiple with zero.
-
-        for n in range(self.num_clients):
-            images, labels = next(iter(self.data_loaders[n]))
-            Vector_update = self._training(data_loader=[images, labels],
-                                           client_weights=self.client_weights[n], model=self.models[n])
-            Vector_update -= self.client_weights[n]  # -eta*G(X_t)
-
-            gradient = Vector_update
-            gradient_norm = torch.sum(torch.square(gradient)).item()
-
-            # gradient = Vector_update / learning_rate
-            # gradient_norm = torch.sum(torch.square(gradient)).item()
-
-            # gradient_and_error_norm = torch.sum(torch.square(Vector_update + self.client_residuals[n])).item()
-
-            Vector_update += Averaged_weights[n]  # X_tW - eta*G(X_t)
-            Vector_update -= self.client_weights[n]  # X_t(W-I) - eta*G(X_t)
-
-            if iter_num == 0:
-                error_norm = 1
-            else:
-                error_norm = torch.sum(torch.square(self.client_residuals[n])).item()
-
-            # print(iter_num, n, 'gradient norm: ', gradient_norm, '|',  'Error norm: ', error_norm, '|',
-            #       'computed gamma: ', min(np.sqrt(gradient_norm * normalization / (error_norm + epsilon)), 1.0))
-            # print(iter_num, n, 'gradient norm: ', gradient_norm, '|', 'Error norm: ', error_norm, '|',
-            #       'computed gamma: ', min(np.sqrt(gradient_norm / ((error_norm / normalization) + epsilon)), 1.0))
-
-            "Pre-adjustment"
-            if self.adaptive is True:
-                # self.client_compressor[n].discount_parameter = min(np.sqrt(gradient_norm / ((error_norm / normalization) + epsilon)), 1.0)  # works well for topk
-                self.client_compressor[n].discount_parameter = min(np.sqrt(gradient_norm * normalization / (error_norm + epsilon)), 1.0)
-            # self.gamma_tracking[n].append(self.client_compressor[n].discount_parameter)
-
-            residual_errors = (1 - self.client_compressor[n].discount_parameter) * self.client_residuals[n]  # Equals to zero if gamma equals to 1.0
-
-            "Compression Operator"  # Vector_update = v_t = C(b_t) | client_residual = e_(t+1) = b_t - v_t
-            Vector_update, self.client_residuals[n] = self.client_compressor[n].get_trans_bits_and_residual(iter=iter_num, w_tmp=Vector_update, w_residual=self.client_residuals[n], device=self.device, neighbors=self.neighbors[n])
-
-            self.client_residuals[n] += residual_errors  # e_(t+1) = b_t - v_t + (1-gamma)*e_t
-
-            self.client_weights[n] += Vector_update  # x_(t+1) = x_t + v_t
-            for m in range(self.num_clients):
-                if n in self.neighbors[m]:
-                    self.neighbor_models[m][self.neighbors[m].index(n)] += Vector_update
-
-    def NDEFD_w_momentum(self, iter_num, normalization):
-        Averaged_weights = self._average_updates(updates=self.neighbor_models)
-
-        learning_rate = self.models[0].learning_rate
-        error_ratio_i = []
-        epsilon = 0.000000000001  # noise: make sure not divide or multiple with zero.
-        if iter_num == 0:
-            for n in range(self.num_clients):
-                images, labels = next(iter(self.data_loaders[n]))
-                training_weights = self._training(data_loader=[images, labels], client_weights=self.client_weights[n], model=self.models[n])
-                initial_gradients = (self.client_weights[n] - training_weights) / learning_rate
-                # initial_gradients = self.client_weights[n] - training_weights
-                self.V.append(initial_gradients)
-                self.previous_gradients.append(initial_gradients)
-
-        for n in range(self.num_clients):
-            images, labels = next(iter(self.data_loaders[n]))
-            Vector_update = self._training(data_loader=[images, labels],
-                                           client_weights=self.client_weights[n], model=self.models[n])
-            Vector_update -= self.client_weights[n]  # -eta*G(X_t)
-
-            beta = 0.05
-            gradient = Vector_update
-            gradient = (1 - beta) * self.previous_gradients[n] + beta * Vector_update
-            self.previous_gradients[n] = gradient
-            Vector_update = gradient
-
-            gradient_norm = torch.sum(torch.square(Vector_update)).item()
-            gradient_and_error_norm = torch.sum(torch.square(Vector_update + self.client_residuals[n])).item()
-
-            Vector_update += Averaged_weights[n]  # X_tW - eta*G(X_t)
-            Vector_update -= self.client_weights[n]  # X_t(W-I) - eta*G(X_t)
-
-            if iter_num == 0:
-                error_norm = 1
-            else:
-                error_norm = torch.sum(torch.square(self.client_residuals[n])).item()
-
-            # "Pre-adjustment"
-            # if self.adaptive is True:
-            #     self.client_compressor[n].discount_parameter = min(np.sqrt(gradient_norm / (normalization * error_norm + epsilon)), 1.0)  # works well for topk
-            # # self.gamma_tracking[n].append(self.client_compressor[n].discount_parameter)
-
-            residual_errors = (1 - self.client_compressor[n].discount_parameter) * self.client_residuals[n]  # Equals to zero if gamma equals to 1.0
-
-            "Compression Operator"  # Vector_update = v_t = C(b_t) | client_residual = e_(t+1) = b_t - v_t
-            Vector_update, self.client_residuals[n] = self.client_compressor[n].get_trans_bits_and_residual(iter=iter_num, w_tmp=Vector_update, w_residual=self.client_residuals[n], device=self.device, neighbors=self.neighbors[n])
-
-            self.client_residuals[n] += residual_errors  # e_(t+1) = b_t - v_t + (1-gamma)*e_t
-
-            self.client_weights[n] += Vector_update  # x_(t+1) = x_t + v_t
-            for m in range(self.num_clients):
-                if n in self.neighbors[m]:
-                    self.neighbor_models[m][self.neighbors[m].index(n)] += Vector_update
+                    self.neighbor_weights[m][self.neighbors[m].index(n)] += v_t
 
     def DCD(self, iter_num):
-        Averaged_weights = self._average_updates(updates=self.neighbor_models)
-
+        weighted_average = self._average_updates(updates=self.neighbor_weights)
         for n in range(self.num_clients):
-            if self.control:
-                # qt = self.client_partition[n].get_q(iter_num)
-                # if np.random.binomial(1, qt) == 1:
-                #     Vector_update = self._training(data_loader=self.data_loaders[n],
-                #                                    client_weights=self.client_weights[n],
-                #                                    model=self.models[n])
-                #     Vector_update -= self.client_weights[n]  # gradient
-                #     Vector_update += Averaged_weights[n]
-                # else:
-                #     Vector_update = Averaged_weights[n]
-                pass
-            else:
-                images, labels = next(iter(self.data_loaders[n]))
-                Vector_update = self._training(data_loader=[images, labels],
-                                               client_weights=self.client_weights[n],
-                                               model=self.models[n])
-                Vector_update -= self.client_weights[n]  # gradient
-                Vector_update += Averaged_weights[n]
-
-            Vector_update -= self.client_weights[n]  # Difference between averaged weights and local weights
-
-            Vector_update, _ = self.client_compressor[n].get_trans_bits_and_residual(iter=iter_num,
-                                                                                     w_tmp=Vector_update,
-                                                                                     w_residual=
-                                                                                     self.client_residuals[n],
-                                                                                     device=self.device,
-                                                                                     neighbors=self.neighbors[n])
-            self.client_weights[n] += Vector_update
-            for m in range(self.num_clients):
-                if n in self.neighbors[m]:
-                    self.neighbor_models[m][self.neighbors[m].index(n)] += Vector_update
-
-    def _averaged_choco(self, updates, update):
-        Averaged = []
-        for i in range(self.num_clients):
-            summation = torch.zeros_like(update[0])
-            for j in range(len(updates[i])):
-                summation += (1/len(updates[i])) * (updates[i][j] - update[i])
-            Averaged.append(summation)
-        return Averaged
-
-    def CHOCO(self, iter_num, consensus):
-        for n in range(self.num_clients):
-            images, labels = next(iter(self.data_loaders[n]))
-            self.client_tmps[n] = self._training(data_loader=[images, labels], client_weights=self.client_weights[n], model=self.models[n])
-
-            Vector_update = self.client_weights[n] - self.client_accumulates[n]
-            Vector_update, _ = self.client_compressor[n].get_trans_bits_and_residual(w_tmp=Vector_update, iter=iter_num,
-                                                                                     w_residual=self.client_residuals[n],
-                                                                                     device=self.device, neighbors=self.neighbors[n])
-            self.client_accumulates[n] += Vector_update  # Vector Update is q_t
-            for m in range(self.num_clients):
-                if n in self.neighbors[m]:
-                    self.neighbor_accumulates[m][self.neighbors[m].index(n)] += Vector_update
-
-        Averaged_accumulate = self._averaged_choco(updates=self.neighbor_accumulates, update=self.client_accumulates)
-
-        for n in range(self.num_clients):
-            self.client_weights[n] = self.client_tmps[n] + consensus * Averaged_accumulate[n]
-
-    def BEER(self, iter_num, gamma, learning_rate):
-        weighted_H = self._averaged_choco(updates=self.neighbor_H, update=self.H)
-        weighted_G = self._averaged_choco(updates=self.neighbor_G, update=self.G)
-
-        for n in range(self.num_clients):
-            if iter_num == 0:
-                images, labels = next(iter(self.data_loaders[n]))
-                training_weights = self._training(data_loader=[images, labels], client_weights=self.client_weights[n], model=self.models[n])
-                initial_gradients = (self.client_weights[n] - training_weights) / learning_rate
-                # initial_gradients = self.client_weights[n] - training_weights
-                self.V.append(initial_gradients)
-                self.previous_gradients.append(initial_gradients)
-
-            self.client_weights[n] = self.client_weights[n] + gamma * weighted_H[n] - learning_rate * self.V[n]
-            H_update = self.client_weights[n] - self.H[n]
-            H_update, _ = self.client_compressor[n].get_trans_bits_and_residual(w_tmp=H_update, iter=iter_num,
-                                                                                     w_residual=self.client_residuals[n],
-                                                                                     device=self.device,
-                                                                                     neighbors=self.neighbors[n])
-            self.H[n] += H_update
-            for m in range(self.num_clients):
-                if n in self.neighbors[m]:
-                    self.neighbor_H[m][self.neighbors[m].index(n)] += H_update
-
-            images, labels = next(iter(self.data_loaders[n]))
-            next_train_weights = self._training(data_loader=[images, labels], client_weights=self.client_weights[n], model=self.models[n])
-            next_gradients = (self.client_weights[n] - next_train_weights) / learning_rate
-            # next_gradients = self.client_weights[n] - next_train_weights
-
-            self.V[n] = self.V[n] + gamma * weighted_G[n] + next_gradients - self.previous_gradients[n]
-            self.previous_gradients[n] = next_gradients
-
-            G_update = self.V[n] - self.G[n]
-            G_update, _ = self.client_compressor[n].get_trans_bits_and_residual(w_tmp=G_update, iter=iter_num,
-                                                                                w_residual=self.client_residuals[n],
-                                                                                device=self.device,
-                                                                                neighbors=self.neighbors[n])
-            self.G[n] += G_update
-            for m in range(self.num_clients):
-                if n in self.neighbors[m]:
-                    self.neighbor_G[m][self.neighbors[m].index(n)] += G_update
-
-    def DeCoM(self, iter_num, gamma, learning_rate, beta):  # Have problem with Quantization compression
-        # s = 32
-        for n in range(self.num_clients):
-            if iter_num == 0:
-                images, labels = next(iter(self.data_loaders[n]))
-                training_weights = self._training(data_loader=[images, labels], client_weights=self.client_weights[n],
-                                                  model=self.models[n])
-                initial_gradients = (self.client_weights[n] - training_weights) / learning_rate
-                self.v.append(initial_gradients)
-                self.previous_V.append(initial_gradients)
-                self.gradients.append(initial_gradients)
-                self.gradients_tmp.append(initial_gradients)
-
-            'client_weights --- theta'
-            self.client_tmps[n] = self.client_weights[n] - learning_rate * self.gradients[n]
-            theta_update = self.client_tmps[n] - self.client_theta_hat[n]
-            theta_update, _ = self.client_compressor[n].get_trans_bits_and_residual(w_tmp=theta_update, iter=iter_num,
-                                                                                    w_residual=self.client_residuals[n],
-                                                                                    device=self.device,
-                                                                                    neighbors=self.neighbors[n])
-            # theta_update = random_quantize_mat(theta_update, s=s)[0]
-            self.client_theta_hat[n] += theta_update
-            for m in range(self.num_clients):
-                if n in self.neighbors[m]:
-                    self.neighbors_theta_hat[m][self.neighbors[m].index(n)] += theta_update
-
-        weighted_theta = self._averaged_choco(updates=self.neighbors_theta_hat, update=self.client_theta_hat)
-        for n in range(self.num_clients):
-            # next_dataloader = copy.deepcopy(self.data_loaders[n])
-            images, labels = next(iter(self.data_loaders[n]))
-            f_hat_current = self._training(data_loader=[images, labels], client_weights=self.client_weights[n],
-                                           model=self.models[n])
-            f_hat_current = (self.client_weights[n] - f_hat_current) / learning_rate
-
-            self.client_weights[n] = self.client_tmps[n] + gamma * weighted_theta[n]
-            f_hat_next = self._training(data_loader=[images, labels], client_weights=self.client_weights[n],
-                                        model=self.models[n])
-            f_hat_next = (self.client_weights[n] - f_hat_next) / learning_rate
-
-            self.v[n] = beta * f_hat_next + (1 - beta) * (self.v[n] + f_hat_next - f_hat_current)
-            # self.v[n] = f_hat_next + (1 - beta) * (self.v[n] - f_hat_current)
-
-            self.gradients_tmp[n] = self.gradients[n] + self.v[n] - self.previous_V[n]
-            self.previous_V[n] = self.v[n]
-
-            g_update = self.gradients_tmp[n] - self.client_g_hat[n]
-            g_update, _ = self.client_compressor[n].get_trans_bits_and_residual(w_tmp=g_update, iter=iter_num,
-                                                                                w_residual=self.client_residuals[n],
-                                                                                device=self.device,
-                                                                                neighbors=self.neighbors[n])
-            # g_update = random_quantize_mat(theta_update, s=s)[0]
-            self.client_g_hat[n] += g_update
-            for m in range(self.num_clients):
-                if n in self.neighbors[m]:
-                    self.neighbors_g_hat[m][self.neighbors[m].index(n)] += g_update
-
-        weighted_g = self._averaged_choco(updates=self.neighbors_g_hat, update=self.client_g_hat)
-        for n in range(self.num_clients):
-            self.gradients[n] = self.gradients_tmp[n] + gamma * weighted_g[n]
-
-    def CEDAS(self, iter_num, alpha, gamma):
-        Trained_weights = []
-        Y_hat_plus = []
-        for n in range(self.num_clients):
-            if iter_num == 0:
-                self.h.append(self.client_weights[n])
-                self.hw.append(self.client_weights[n])
-                images, labels = next(iter(self.data_loaders[n]))
-                self.client_weights[n] = self._training(data_loader=[images, labels],
-                                             client_weights=self.client_weights[n],
-                                             model=self.models[n])
-
             images, labels = next(iter(self.data_loaders[n]))
             trained_weights = self._training(data_loader=[images, labels],
-                                             client_weights=self.client_weights[n],
-                                             model=self.models[n])
+                                             client_weights=self.self_weights[n], model=self.models[n])
+            gradients = trained_weights - self.self_weights[n]  # - eta * gradients
 
-            Trained_weights.append(trained_weights)
-            y = trained_weights - self.diffusion[n]
-            "COMM start"
-            q = y - self.h[n]
-            q, _ = self.client_compressor[n].get_trans_bits_and_residual(w_tmp=q, iter=iter_num,
-                                                                         w_residual=self.client_residuals[n],
-                                                                         device=self.device,
-                                                                         neighbors=self.neighbors[n])
-            y_hat_plus = self.h[n] + q
-            Y_hat_plus.append(y_hat_plus)
+            x_tmp = weighted_average[n] + gradients
+            z_t = x_tmp - self.self_weights[n]
+            z_t, current_residual = self.compressors[n].get_trans_bits_and_residual(w_tmp=z_t)
+
+            self.self_weights[n] += z_t
             for m in range(self.num_clients):
                 if n in self.neighbors[m]:
-                    self.updates[m][self.neighbors[m].index(n)] = q
+                    self.neighbor_weights[m][self.neighbors[m].index(n)] += z_t
 
-        Averaged_updates = self._average_updates(updates=self.updates)
+    def CHOCO(self, iter_num):
+        weighted_average = self._averaged_choco(updates=self.neighbor_accumulate_update, update=self.self_accumulate_update)
+        for n in range(self.num_clients):
+            images, labels = next(iter(self.data_loaders[n]))
+            tmp_weight = self._training(data_loader=[images, labels],
+                                        client_weights=self.self_weights[n], model=self.models[n])
+            self.self_weights[n] = tmp_weight + self.consensus * weighted_average[n]
+
+            q_t = self.self_weights[n] - self.self_accumulate_update[n]
+            q_t, current_residual = self.compressors[n].get_trans_bits_and_residual(w_tmp=q_t)
+
+            self.self_accumulate_update[n] += q_t
+            for m in range(self.num_clients):
+                if n in self.neighbors[m]:
+                    self.neighbor_accumulate_update[m][self.neighbors[m].index(n)] += q_t
+
+    def BEER(self, iter_num):
+        weighted_average_H = self._averaged_choco(updates=self.neighbor_H, update=self.self_H)
+        weighted_average_G = self._averaged_choco(updates=self.neighbor_G, update=self.self_G)
 
         for n in range(self.num_clients):
-            yw_hat_plus = self.hw[n] + Averaged_updates[n]
+            if iter_num == 0:
+                images, labels = next(iter(self.data_loaders[n]))
+                initial_trained_weight = self._training(data_loader=[images, labels],
+                                                        client_weights=self.self_weights[n], model=self.models[n])
+                initial_gradient = (self.self_weights[n] - initial_trained_weight) / self.learning_rate
+                self.self_V.append(initial_gradient)
+                self.previous_gradient.append(initial_gradient)
 
-            self.h[n] = (1-alpha) * self.h[n] + alpha * Y_hat_plus[n]
-            self.hw[n] = (1-alpha) * self.hw[n] + alpha * yw_hat_plus  # here
-            "COMM end"
+            self.self_weights[n] = self.self_weights[n] + self.gamma * weighted_average_H[n] - self.learning_rate * self.self_V[n]
+            q_h = self.self_weights[n] - self.self_H[n]
+            q_h, _ = self.compressors[n].get_trans_bits_and_residual(w_tmp=q_h)
 
-            self.diffusion[n] += (gamma / 2) * (Y_hat_plus[n] - yw_hat_plus)
-            self.client_weights[n] = Trained_weights[n] - self.diffusion[n]
-            # self.client_weights[n] = Trained_weights[n]
+            self.self_H[n] += q_h
+            for m in range(self.num_clients):
+                if n in self.neighbors[m]:
+                    self.neighbor_H[m][self.neighbors[m].index(n)] += q_h
 
-    "MOTEF and MOTEF_VR require large batch size? No"
-    def MoTEF(self, iter_num, gamma, learning_rate, Lambda):  # Binary classification?
-        weighted_H = self._averaged_choco(updates=self.neighbor_H, update=self.H)
-        weighted_G = self._averaged_choco(updates=self.neighbor_G, update=self.G)
+            images, labels = next(iter(self.data_loaders[n]))
+            next_trained_weight = self._training(data_loader=[images, labels],
+                                                 client_weights=self.self_weights[n], model=self.models[n])
+            next_gradient = (self.self_weights[n] - next_trained_weight) / self.learning_rate
 
+            self.self_V[n] = self.self_V[n] + self.gamma * weighted_average_G[n] + next_gradient - self.previous_gradient[n]
+            self.previous_gradient[n] = next_gradient
+
+            q_g = self.self_V[n] - self.self_G[n]
+            q_g, _ = self.compressors[n].get_trans_bits_and_residual(w_tmp=q_g)
+
+            self.self_G[n] += q_g
+            for m in range(self.num_clients):
+                if n in self.neighbors[m]:
+                    self.neighbor_G[m][self.neighbors[m].index(n)] += q_g
+
+    def MoTEF(self, iter_num):
         if iter_num == 0:
             for n in range(self.num_clients):
                 images, labels = next(iter(self.data_loaders[n]))
-                training_weights = self._training(data_loader=[images, labels], client_weights=self.client_weights[n],
-                                                  model=self.models[n])
-                initial_gradients = (self.client_weights[n] - training_weights) / learning_rate
-                # initial_gradients = self.client_weights[n] - training_weights
-                # self.V.append(initial_gradients)
-                self.V.append(initial_gradients)
-                self.M.append(initial_gradients)
-                # self.M.append(torch.zeros_like(initial_gradients))
-                self.G[n] = initial_gradients
+                initial_trained_weight = self._training(data_loader=[images, labels],
+                                                        client_weights=self.self_weights[n], model=self.models[n])
+                initial_gradient = (self.self_weights[n] - initial_trained_weight) / self.learning_rate
+                self.self_V.append(initial_gradient)
+                self.self_M.append(initial_gradient)
+                self.self_G[n] = initial_gradient
+                self.self_H[n] = self.self_weights[n]
                 for m in range(self.num_clients):
                     if n in self.neighbors[m]:
-                        self.neighbor_G[m][self.neighbors[m].index(n)] = initial_gradients
+                        self.neighbor_G[m][self.neighbors[m].index(n)] = initial_gradient
+                        self.neighbor_H[m][self.neighbors[m].index(n)] = self.self_weights[n]
 
+        weighted_average_H = self._averaged_choco(updates=self.neighbor_H, update=self.self_H)
+        weighted_average_G = self._averaged_choco(updates=self.neighbor_G, update=self.self_G)
         for n in range(self.num_clients):
+            self.self_weights[n] += self.gamma * weighted_average_H[n] - self.learning_rate * self.self_V[n]
+            q_h = self.self_weights[n] - self.self_H[n]
+            q_h, _ = self.compressors[n].get_trans_bits_and_residual(w_tmp=q_h)
 
-            self.client_weights[n] += gamma * weighted_H[n] - learning_rate * self.V[n]
-            Q_h_update = self.client_weights[n] - self.H[n]
-            Q_h_update, _ = self.client_compressor[n].get_trans_bits_and_residual(w_tmp=Q_h_update, iter=iter_num,
-                                                                                 w_residual=self.client_residuals[n],
-                                                                                 device=self.device,
-                                                                                 neighbors=self.neighbors[n])
-            self.H[n] += Q_h_update
+            self.self_H[n] += q_h
             for m in range(self.num_clients):
                 if n in self.neighbors[m]:
-                    self.neighbor_H[m][self.neighbors[m].index(n)] += Q_h_update
-
-            # print(self.previous_M[n], self.M)
-            self.previous_M[n] = copy.deepcopy(self.M[n])
+                    self.neighbor_H[m][self.neighbors[m].index(n)] += q_h
 
             images, labels = next(iter(self.data_loaders[n]))
-            trained_weights = self._training(data_loader=[images, labels],
-                                             client_weights=self.client_weights[n],
-                                             model=self.models[n])
-            gradients = (self.client_weights[n] - trained_weights) / learning_rate
+            next_trained_weight = self._training(data_loader=[images, labels],
+                                                 client_weights=self.self_weights[n], model=self.models[n])
+            next_gradient = (self.self_weights[n] - next_trained_weight) / self.learning_rate
+            current_M = copy.deepcopy(self.self_M[n])
+            self.self_M[n] = (1 - self.lamda) * self.self_M[n] + self.lamda * next_gradient
+            self.self_V[n] += self.gamma * weighted_average_G[n] + self.self_M[n] - current_M
 
-            self.M[n] = (1 - Lambda) * self.M[n] + Lambda * gradients
-            self.V[n] += gamma * weighted_G[n] + self.M[n] - self.previous_M[n]
+            q_g = self.self_V[n] - self.self_G[n]
+            q_g, _ = self.compressors[n].get_trans_bits_and_residual(w_tmp=q_g)
 
-            Q_g_update = self.V[n] - self.G[n]
-            Q_g_update, _ = self.client_compressor[n].get_trans_bits_and_residual(w_tmp=Q_g_update, iter=iter_num,
-                                                                                  w_residual=self.client_residuals[n],
-                                                                                  device=self.device,
-                                                                                  neighbors=self.neighbors[n])
-
-            self.G[n] += Q_g_update
+            self.self_G[n] += q_g
             for m in range(self.num_clients):
                 if n in self.neighbors[m]:
-                    self.neighbor_G[m][self.neighbors[m].index(n)] += Q_g_update
+                    self.neighbor_G[m][self.neighbors[m].index(n)] += q_g
+
+    def DeepsSqueeze(self, iter_num):  # Need to be checked, the original DeepSqueeze algorithm is not correct.
+        for n in range(self.num_clients):
+            images, labels = next(iter(self.data_loaders[n]))
+            current_trained_weight = self._training(data_loader=[images, labels],
+                                                    client_weights=self.self_weights[n], model=self.models[n])
+            current_gradient = (self.self_weights[n] - current_trained_weight) / self.learning_rate
+
+            self.tmp_weights[n] = self.self_weights[n] - self.learning_rate * current_gradient
+            v_t = self.self_weights[n] - self.learning_rate * current_gradient + self.residual_errors[n]
+            compressed_v, self.residual_errors[n] = self.compressors[n].get_trans_bits_and_residual(w_tmp=v_t)
+
+            self.self_update[n] = compressed_v
+            for m in range(self.num_clients):
+                if n in self.neighbors[m]:
+                    self.neighbor_update[m][self.neighbors[m].index(n)] = compressed_v
+
+        weighted_average_update = self._averaged_choco(updates=self.neighbor_update, update=self.self_update)
+
+        for n in range(self.num_clients):
+            self.self_weights[n] = self.tmp_weights[n] + self.average_rate * weighted_average_update[n]
+
+    def CEDAS(self):
+        pass
+
+    def DeCoM(self):
+        pass

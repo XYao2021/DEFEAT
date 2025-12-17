@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 from model.model import Model
 from util.util import *
 from compression import *
-from partition import *
 from config import *
 from dataset.dataset import *
 from trans_matrix import *
@@ -22,122 +21,80 @@ if device != 'cpu':
     torch.cuda.set_device(current_device)
     device = 'cuda:{}'.format(CUDA_ID)
 
-# Suggest by reviewer: ReNet-20 with CIFAR10 and CIFAR100.
-
 if __name__ == '__main__':
     ACC = []
     LOSS = []
-    COMM = []
-    ALPHAS = []
-    MAXES = []
     for seed in Seed_set:
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
 
-        # model_name = "SVHN"
-        # dataset = "SVHN"
-
-        "other dataset: EMNIST / KMNIST / SVHN"
-        if dataset == 'CINIC10':
-            train_data, test_data = loading_CINIC(data_path=dataset_path, device=device)
-            train_loader = torch.utils.data.DataLoader(train_data, batch_size=BATCH_SIZE_TEST, shuffle=True, num_workers=0)
-            test_loader = torch.utils.data.DataLoader(test_data, batch_size=BATCH_SIZE_TEST, shuffle=True, num_workers=0)
-        elif dataset == 'FashionMNIST' or 'CIFAR10' or 'MNIST' or 'EMNIST' or 'QMNIST' or 'KMNIST':
+        if dataset == 'FashionMNIST' or 'CIFAR10' or 'MNIST':
             train_data, test_data = loading(dataset_name=dataset, data_path=dataset_path, device=device)
-            train_loader = DataLoader(train_data, batch_size=BATCH_SIZE_TEST, shuffle=True, num_workers=0)
-            test_loader = DataLoader(test_data, batch_size=BATCH_SIZE_TEST, shuffle=False, num_workers=0)
+            NUM_CLASS = len(train_data.classes)
 
-        train_loader = DataLoader(train_data, batch_size=BATCH_SIZE_TEST, shuffle=True, num_workers=0)
-        test_loader = DataLoader(test_data, batch_size=BATCH_SIZE_TEST, shuffle=False, num_workers=0)
+            client_data, client_indices = partition_dirichlet_equal_return_data(
+                device=device,
+                dataset=train_data,
+                labels=train_data.target_transformed,
+                num_clients=CLIENTS,
+                num_classes=NUM_CLASS,
+                alpha=ALPHA,
+                seed=seed,
+                drop_remainder=True,
+                return_indices=False,  # set True if you only want indices
+            )
 
-        # print(train_data.labels)
+            train_loader = DataLoader(train_data, batch_size=BATCH_SIZE_TEST, shuffle=True, pin_memory=True, num_workers=0)
+            test_loader = DataLoader(test_data, batch_size=BATCH_SIZE_TEST, shuffle=False, pin_memory=True, num_workers=0)
+        else:
+            raise Exception('Unrecognized dataset !!!')
 
         print("......DATA LOADING COMPLETE......")
-        Sample = Sampling(num_client=CLIENTS, num_class=10, train_data=train_data, method='uniform', seed=seed, name=dataset)
-        if DISTRIBUTION == 'Dirichlet':
-            if ALPHA == 0:
-                client_data = Sample.DL_sampling_single()
-            elif ALPHA > 0:
-                client_data = Sample.Synthesize_sampling(alpha=ALPHA)
-        else:
-            raise Exception('This data distribution method has not been embedded')
+        # Sample = Sampling(num_client=CLIENTS, num_class=10, train_data=train_data, method='uniform', seed=seed, name=dataset)
+        # if DISTRIBUTION == 'Dirichlet':
+        #     if ALPHA == 0:
+        #         client_data = Sample.DL_sampling_single()
+        #     elif ALPHA > 0:
+        #         client_data = Sample.Synthesize_sampling(alpha=ALPHA)
+        # else:
+        #     raise Exception('This data distribution method has not been embedded')
 
-        client_train_loader = []
-        client_residual = []
-        client_compressor = []
-        client_partition = []
-        Models = []
-        client_weights = []
-        client_tmps = []
-        client_accumulate = []
-        neighbor_models = []
-        neighbors_accumulates = []
-        neighbors_estimates = []
-        neighbor_updates = []
-        estimate_gossip_error = []
-        current_weights = []
-        m_hat = []
+        "Print the details of data distribution"
+        # print("Per-client sizes:", [len(cd) for cd in client_data])
+        for i in range(CLIENTS):
+            count = [0 for i in range(NUM_CLASS)]
+            for j in range(len(client_data[i])):
+                count[int(client_data[i][j][1])] += 1
+            print(i, count)
 
+        models = []
+        self_weights = []
+        neighbor_weights = []
+        data_loader = []
+        compressors = []
+
+        "DEFEAT / DEFEAT_Ada"
+        residual_errors = []
+
+        "DCD"
+
+        "CHOCO"
+        self_accumulate_update = []
+        neighbor_accumulate_update = []
+
+        "BEER"
+        self_H = []
         neighbor_H = []
+        self_G = []
         neighbor_G = []
-        H = []
-        G = []
 
-        if ALGORITHM == 'EFD':
-            # max_value = 0.2782602
-            # min_value = -0.2472423
-            max_value = 0.5642
-            min_value = -0.5123
-            # max_value = 0.3015
-            # min_value = -0.3220
-            "FashionMNIST Used before"
-            # max_value = 0.4066
-            # min_value = -0.2881
-            "KMNIST"
-            # max_value = 0.2222
-            # min_value = -0.2274
-        elif ALGORITHM == 'DEFEAT':
-            max_value = 0.4066
-            min_value = -0.2881
-        elif ALGORITHM == 'DEFEAT_C':
-            max_value = 0.4066
-            min_value = -0.2881
-        elif ALGORITHM == 'DCD':
-            # max_value = 0.35543507
-            # min_value = -0.30671167
-            # max_value = 0.2208
-            # min_value = -0.1937
-            # max_value = 0.5642
-            # min_value = -0.5123
-            # max_value = 0.4038
-            # min_value = -0.2891
-            max_value = 0.4038
-            min_value = -0.4095
-        elif ALGORITHM == 'CHOCO':
-            max_value = 0.30123514
-            min_value = -0.21583036
-        elif ALGORITHM == 'BEER':
-            # max_value = 0.30123514
-            # min_value = -0.21583036
-            max_value = 3.6578
-            min_value = -3.3810
-            # max_value = 2.7954
-            # min_value = -2.9491
-        elif ALGORITHM == 'DeCoM':
-            # max_value = 4.7449
-            # min_value = -4.1620
-            max_value = 2.2271
-            min_value = -2.3342
-        elif ALGORITHM == 'CEDAS':
-            max_value = 0.0525
-            min_value = -0.0233
-        elif ALGORITHM == 'MoTEF':
-            max_value = 1.9098
-            min_value = -2.7054
+        "MOTEF"
 
-        # print(min_value, max_value)
+        "DeepSqueeze"
+        self_update = []
+        neighbor_update = []
 
         Transfer = Transform(num_nodes=CLIENTS, num_neighbors=NEIGHBORS, seed=seed, network=NETWORK)
         check = Check_Matrix(CLIENTS, Transfer.matrix)
@@ -148,165 +105,114 @@ if __name__ == '__main__':
         eigenvalues, Gaps = Transfer.Get_alpha_upper_bound_theory()
 
         test_model = Model(random_seed=seed, learning_rate=LEARNING_RATE, model_name=model_name, device=device, flatten_weight=True, pretrained_model_file=load_model_file)
-        # Preparation for every vector variables
+
+        "Initialization"
         for n in range(CLIENTS):
             model = Model(random_seed=seed, learning_rate=LEARNING_RATE, model_name=model_name, device=device, flatten_weight=True, pretrained_model_file=load_model_file)
-            Models.append(model)
-            client_weights.append(model.get_weights())
 
-            client_train_loader.append(DataLoader(client_data[n], batch_size=BATCH_SIZE, shuffle=True))
+            # initial_weights = model.get_weights().to(device)
+            # initial_neighbor_models = [model.get_weights().to(device) for i in range(len(Transfer.neighbors[n]))]
+            # initial_zeros = torch.zeros_like(model.get_weights()).to(device)
+            # initial_neighbor_zeros = [torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))]
 
-            client_residual.append(torch.zeros_like(model.get_weights()).to(device))
-            neighbor_models.append([model.get_weights() for i in range(len(Transfer.neighbors[n]))])
+            models.append(model)
+            self_weights.append(model.get_weights().to(device))
+            data_loader.append(DataLoader(client_data[n], batch_size=BATCH_SIZE, shuffle=True))
 
-            neighbor_updates.append([torch.zeros_like(model.get_weights()) for i in range(len(Transfer.neighbors[n]))])
+            "DEFEAT / DEFEAT_Ada"
+            residual_errors.append(torch.zeros_like(model.get_weights()).to(device))
+            neighbor_weights.append([model.get_weights().to(device) for i in range(len(Transfer.neighbors[n]))])
 
-            if ALGORITHM == 'DCD':
-                DISCOUNT = 0
+            "DCD"
+
+            "CHOCO"
+            self_accumulate_update.append(torch.zeros_like(model.get_weights()).to(device))
+            neighbor_accumulate_update.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
+
+            "BEER"
+            self_H.append(torch.zeros_like(model.get_weights()).to(device))
+            neighbor_H.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
+            self_G.append(torch.zeros_like(model.get_weights()).to(device))
+            neighbor_G.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
+
+            "MOTEF"
+
+            "DeepSqueeze"
+            self_update.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
+            neighbor_update.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
+
+            "Compression initialization"
+            normalization = 1
             if COMPRESSION == 'quantization':
-                if ALGORITHM == 'DEFEAT' or 'DEFEAT_C':
-                    if ADAPTIVE:
-                        # DISCOUNT = np.sqrt(QUANTIZE_LEVEL)
-                        scale = 2 ** QUANTIZE_LEVEL - 1
-                        step = (max_value - min_value) / scale
-                        normalization = step
-                        model_size = len(client_weights[n])
-                        print(step**2 * model_size, (step/2)**2 * model_size, model_size)
-                        # normalization = (step) ** 2 * model_size
-                        # normalization = (step / 2) ** 2 * model_size
-                        normalization = model_size
-                    else:
-                        normalization = 1
-                if CONTROL is True:
-                    client_compressor.append(Lyapunov_compression_Q(node=n, avg_comm_cost=average_comm_cost, V=V, W=W, max_value=max_value, min_value=min_value))
-                    client_partition.append(Lyapunov_Participation(node=n, average_comp_cost=average_comp_cost, V=V, W=W, seed=seed))
+                if ADAPTIVE:
+                    model_size = len(client_weights[n])
+                    normalization = model_size
+                if FIRST is True:
+                    compressors.append(Quantization_I(num_bits=QUANTIZE_LEVEL, max_value=max_value, min_value=min_value, device=device))
                 else:
-                    if FIRST is True:
-                        client_compressor.append(Quantization_I(num_bits=QUANTIZE_LEVEL, max_value=max_value, min_value=min_value, device=device, discount=DISCOUNT))
-                    else:
-                        client_compressor.append(Quantization_U_1(num_bits=QUANTIZE_LEVEL, max_value=max_value, min_value=min_value, device=device, discount=DISCOUNT))  # Unbiased
-                        # client_compressor.append(Quantization_U(num_bits=QUANTIZE_LEVEL, max_value=max_value, min_value=min_value, device=device, discount=DISCOUNT))  # Unbiased 1
-                        # client_compressor.append(Quantization(num_bits=QUANTIZE_LEVEL, max_value=max_value, min_value=min_value, device=device, discount=DISCOUNT))  # Biased
+                    compressors.append(Quantization_U_1(num_bits=QUANTIZE_LEVEL, max_value=max_value, min_value=min_value, device=device))  # Unbiased
             elif COMPRESSION == 'topk':
-                normalization = 1
-                if CONTROL is True:
-                    client_compressor.append(Lyapunov_compression_T(node=n, avg_comm_cost=average_comm_cost, V=V, W=W))
-                    client_partition.append(Lyapunov_Participation(node=n, average_comp_cost=average_comp_cost, V=V, W=W, seed=seed))
-                else:
-                    client_compressor.append(Top_k(ratio=RATIO, device=device, discount=DISCOUNT))
+                compressors.append(Top_k(ratio=RATIO, device=device))
             elif COMPRESSION == 'randk':
-                normalization = 1
-                client_compressor.append(Rand_k(ratio=RATIO, device=device, discount=DISCOUNT))
+                compressors.append(Rand_k(ratio=RATIO, device=device))
             else:
                 raise Exception('Unknown compression method, please write the compression method first')
 
-            if ALGORITHM == 'CHOCO':
-                client_tmps.append(model.get_weights().to(device))
-                client_accumulate.append(torch.zeros_like(model.get_weights()).to(device))
-                neighbors_accumulates.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
-            if ALGORITHM == 'DeCoM':
-                client_tmps.append(model.get_weights().to(device))
-                client_accumulate.append(torch.zeros_like(model.get_weights()).to(device))
-                neighbors_accumulates.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
-            if ALGORITHM == 'CEDAS':
-                client_tmps.append(model.get_weights().to(device))
-                client_accumulate.append(torch.zeros_like(model.get_weights()).to(device))
-                neighbors_accumulates.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
-            if ALGORITHM == 'MoTEF' or 'MoTEF_VR' or 'NDEFD':
-                # client_tmps.append(model.get_weights().to(device))
-                # neighbor_H.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
-                neighbor_H.append([model.get_weights().to(device) for i in range(len(Transfer.neighbors[n]))])
-                neighbor_G.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
-                # H.append(torch.zeros_like(model.get_weights()).to(device))
-                H.append(model.get_weights().to(device))
-                G.append(torch.zeros_like(model.get_weights()).to(device))
-                client_accumulate.append(torch.zeros_like(model.get_weights()).to(device))
-            if ALGORITHM == 'BEER':
-                neighbor_H.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
-                neighbor_G.append([torch.zeros_like(model.get_weights()).to(device) for i in range(len(Transfer.neighbors[n]))])
-                H.append(torch.zeros_like(model.get_weights()).to(device))
-                G.append(torch.zeros_like(model.get_weights()).to(device))
-        # print(model.key_list, model.size_list, sum(model.size_list), len(model.size_list))
-        Algorithm = Algorithms(name=ALGORITHM, iter_round=ROUND_ITER, device=device, data_transform=data_transform,
-                               num_clients=CLIENTS, client_weights=client_weights, client_residuals=client_residual,
-                               client_accumulates=client_accumulate, client_compressors=client_compressor,
-                               models=Models, data_loaders=client_train_loader, transfer=Transfer,
-                               neighbor_models=neighbor_models, neighbors_accumulates=neighbors_accumulates,
-                               client_tmps=client_tmps, neighbors_estimates=neighbors_estimates, client_partition=client_partition,
-                               control=CONTROL, alpha_max=0, compression_method=COMPRESSION,
-                               estimate_gossip_error=estimate_gossip_error, current_weights=current_weights, m_hat=m_hat,
-                               adaptive=ADAPTIVE, threshold=THRESHOLD, H=H, neighbor_H=neighbor_H, G=G, neighbor_G=neighbor_G)
+        neighbors = list(Transfer.neighbors)
+
+        Algorithm = Algorithms(algorithm=ALGORITHM, compression=COMPRESSION, num_nodes=CLIENTS, neighbors=neighbors, models=models, data_transform=data_transform,
+                 device=device, self_weights=self_weights, neighbor_weights=neighbor_weights, data_loader=data_loader, learning_rate=LEARNING_RATE,
+                 compressors=compressors, gamma=DISCOUNT, residual_errors=residual_errors, self_accumulate_update=self_accumulate_update, neighbor_accumulate_update=neighbor_accumulate_update,
+                 self_H=self_H, neighbor_H=neighbor_H, self_G=self_G, neighbor_G=neighbor_G, lamda=BETA, self_update=self_update,
+                 neighbor_update=neighbor_update, average_rate=DISCOUNT, normalization=normalization)
+
         global_loss = []
         Test_acc = []
         iter_num = 0
-        print(ALGORITHM, DISCOUNT, BETA, FIRST)
+        print('ALGORITHM: ', ALGORITHM, 'CONSENSUS/GAMMA: ', DISCOUNT, 'MOMENTUM: ', BETA, 'FIRST_TIME: ', FIRST)
 
+        "Training start"
         while True:
-            # print('SEED ', '|', seed, '|', 'ITERATION ', iter_num, 'gamma ', DISCOUNT)
             if ALGORITHM == 'DEFEAT':
-                Algorithm.DEFEAT(iter_num=iter_num, normalization=normalization)
+                Algorithm.DEFEAT(iter_num=iter_num)
             elif ALGORITHM == 'DEFEAT_C':
-                Algorithm.DEFEAT_C(iter_num=iter_num, normalization=normalization)
+                Algorithm.DEFEAT_ada(iter_num=iter_num)
             elif ALGORITHM == 'DCD':
-                if iter_num == 0:
-                    print('Algorithm DCD applied')
                 Algorithm.DCD(iter_num=iter_num)
             elif ALGORITHM == 'CHOCO':
-                if iter_num == 0:
-                    print('Algorithm CHOCO applied')
-                Algorithm.CHOCO(iter_num=iter_num, consensus=DISCOUNT)  # replace consensus with gamma
+                Algorithm.CHOCO(iter_num=iter_num)  # consensus = gamma
             elif ALGORITHM == 'BEER':  # 1
-                if iter_num == 0:
-                    print('Algorithm BEER applied')
-                Algorithm.BEER(iter_num=iter_num, gamma=DISCOUNT, learning_rate=LEARNING_RATE)
-            elif ALGORITHM == 'DeCoM':  # MNIST work, fashionMNIST not work
-                if iter_num == 0:
-                    print('Algorithm DeCoM applied')
-                Algorithm.DeCoM(iter_num=iter_num, gamma=DISCOUNT, beta=BETA, learning_rate=LEARNING_RATE)  # gamma = 0.2, beta = 0.05
-            elif ALGORITHM == 'CEDAS':  # 1  (Very interesting, It is possible to improve DEFD according to this algorithm)
-                if iter_num == 0:
-                    print('Algorithm CEDAS applied')
-                Algorithm.CEDAS(iter_num=iter_num, gamma=DISCOUNT, alpha=BETA)  # gamma = 0.2 , alpha = 0.05
+                Algorithm.BEER(iter_num=iter_num)  # consensus = gamma
             elif ALGORITHM == 'MoTEF':  # 1
-                if iter_num == 0:
-                    print('Algorithm MOTEF applied')
-                Algorithm.MoTEF(iter_num=iter_num, gamma=DISCOUNT, learning_rate=LEARNING_RATE, Lambda=BETA)  # 0.05 / 0.01 / 0.1 # gamma = 0.2 , Lambda = 0.05
-            elif ALGORITHM == 'MoTEF_VR':  # 0
-                if iter_num == 0:
-                    print('Algorithm MOTEF_VR applied')
-                Algorithm.MOTEF_VR(iter_num=iter_num, gamma=DISCOUNT, learning_rate=LEARNING_RATE, Lambda=BETA)
+                Algorithm.MoTEF(iter_num=iter_num)  # consensus = gamma, Lambda = beta
+            elif ALGORITHM == 'DeepSqueeze':
+                Algorithm.DeepsSqueeze(iter_num=iter_num)
             else:
                 raise Exception('Unknown algorithm, please update the algorithm codes')
 
             iter_num += 1
-            # for i in range(CLIENTS):
-            #     print(iter_num, i, Algorithm.models[i].get_weights())
 
             "Need to change the testing model to local model rather than global averaged model"
             if TEST == 'average':
                 test_weights = average_weights([Algorithm.models[i].get_weights() for i in range(CLIENTS)])  # test with global averaged model
             elif TEST == 'local':
-                test_weights = Algorithm.models[1].get_weights()  # test with local model
+                test_weights = average_weights([Algorithm.models[i].get_weights() for i in neighbors[0]])  # test with local model
 
             train_loss, train_acc = test_model.accuracy(weights=test_weights, test_loader=train_loader, device=device)
             test_loss, test_acc = test_model.accuracy(weights=test_weights, test_loader=test_loader, device=device)
 
             global_loss.append(train_loss)
             Test_acc.append(test_acc)
-            print('SEED |', seed, '| iteration |', iter_num, '| Global Loss', train_loss, '| Training Accuracy |',
-                  train_acc, '| Test Accuracy |', test_acc, '\n')
-            # print(iter_num, [client_compressor[i].discount_parameter for i in range(CLIENTS)], '\n')
+            print('SEED |', seed, '| iteration |', iter_num, '| Global Loss', round(train_loss, 6), '| Training Accuracy |',
+                  round(train_acc, 4), '| Test Accuracy |', round(test_acc, 4), '\n')
 
             if iter_num >= AGGREGATION:
                 ACC += Test_acc
                 LOSS += global_loss
-                ALPHAS += Algorithm.error_mag
-                MAXES += Algorithm.error_ratio
-                # print([Algorithm.change_iter_num for i in range(CLIENTS)])
-                print([client_compressor[i].discount_parameter for i in range(CLIENTS)])
+                # print([compressors[i].discount_parameter for i in range(CLIENTS)])
                 break
-        del Models
-        del client_weights
+        del models
+        del self_weights
 
         torch.cuda.empty_cache()  # Clean the memory cache
 
@@ -315,20 +221,17 @@ if __name__ == '__main__':
             Maxes = []
             Mines = []
             for i in range(CLIENTS):
-                # print(i, client_compressor[i].max, client_compressor[i].min)
-                Maxes.append(max(client_compressor[i].max))
-                Mines.append(min(client_compressor[i].min))
+                Maxes.append(max(compressors[i].max))
+                Mines.append(min(compressors[i].min))
             txt_list = [Maxes, '\n', Mines, '\n', ACC, '\n', LOSS]
             print(max(Maxes), min(Maxes), max(Mines), min(Mines))
         else:
             txt_list = [ACC, '\n', LOSS, '\n', eigenvalues, '\n', Gaps]
-            # txt_list = [ACC, '\n', LOSS, '\n', ALPHAS]
-            # txt_list = [ACC, '\n', LOSS, '\n', ALPHAS, '\n', MAXES]
 
         if COMPRESSION == 'quantization':
-            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, QUANTIZE_LEVEL, DISCOUNT, TEST, dataset, LEARNING_RATE, CONSENSUS_STEP, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, QUANTIZE_LEVEL, DISCOUNT, TEST, dataset, LEARNING_RATE, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
         elif COMPRESSION == 'topk' or 'randk':
-            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, RATIO, DISCOUNT, TEST, dataset, LEARNING_RATE, CONSENSUS_STEP, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, RATIO, DISCOUNT, TEST, dataset, LEARNING_RATE, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
         else:
             raise Exception('Unknown compression method')
 
@@ -336,8 +239,3 @@ if __name__ == '__main__':
             f.write("%s\n" % item)
     else:
         print('NOT STORE THE RESULTS THIS TIME')
-
-    # whole length of weights (top-k): 39760
-
-    # for repeat_time in range(1):
-    #     os.system('say "Mission Complete."')

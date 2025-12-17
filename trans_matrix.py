@@ -17,7 +17,8 @@ class Transform:
             np.random.seed(seed)
         if network == 'Ring':
             self._Ring_network()
-            # self.random_ring_network()
+        elif network == 'Rand_Ring':
+            self.random_ring_network()
         elif network == 'Torus':
             self._Torus_network()
         elif network == 'Cyclic':
@@ -169,8 +170,8 @@ class Transform:
         eigenvalues = np.sort(eigenvalues, axis=-1)[::-1]
 
         Gaps = 1 - eigenvalues
-        print('Eigenvalues: ', eigenvalues)
-        print('Gaps: ', Gaps)
+        print('Eigenvalues: ', eigenvalues[:2])
+        print('Gaps: ', Gaps[:2])
         return eigenvalues, Gaps
 
 

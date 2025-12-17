@@ -25,29 +25,19 @@ class Model:
         self.size_list = []
 
         if model_name == 'FashionMNIST':
-            from model.MNISTModel import MNISTModel
+            from model.MNISTModel import MNISTModel, MNISTModel_V
             self.model = MNISTModel().to(device)
+            # self.model = MNISTModel_V().to(device)
         elif model_name == 'MNIST':
             from model.MNISTModel import MNISTModel
             self.model = MNISTModel().to(device)
-        # elif model_name == 'EMNIST':
-            # from model.MNISTModel import MNISTModel
-            # self.model = MNISTModel().to(device)
-        # elif model_name == 'QMNIST':
-        #     from model.MNISTModel import MNISTModel
-        #     self.model = MNISTModel().to(device)
         elif model_name == 'KMNIST':
             from model.MNISTModel import KMNISTModel, MNISTModel
             self.model = KMNISTModel().to(device)
             # self.model = MNISTModel().to(device)
-        # elif model_name == 'SVHN':
-        #     from model.SVHNModel import SVHNModel
-        #     self.model = SVHNModel().to(device)
         elif model_name == 'CIFAR10Model':
-            from model.CIFAR10Model import CIFAR10Model, ResNet20, ModelCNNCifar10
-            self.model = CIFAR10Model().to(device)
-            # self.model = ResNet20().to(device)
-            # self.model = ModelCNNCifar10().to(device)
+            from model.CIFAR10Model import ResNet8
+            self.model = ResNet20().to(device)
 
         if pretrained_model_file is not None:
             self.model.load_state_dict(torch.load(pretrained_model_file, map_location=device))

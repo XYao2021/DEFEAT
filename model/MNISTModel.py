@@ -34,52 +34,52 @@ class MNISTModel(nn.Module):  # Improve the model V0 with nonlinear activation f
         x = self.layer_1(x)
         return self.layer_2(x)
 
-# class MNISTModel(nn.Module):  # Improve the model V0 with nonlinear activation function nn.Relu()
-#     def __init__(self, input_shape=784,
-#                  output_shape=10,
-#                  hidden_units_1=200, hidden_units_2=100, hidden_units_3=50):
-#         super().__init__()
-#         self.layer_1 = nn.Sequential(nn.Flatten(),  # Equal to x.view(-1, 784)
-#                                      nn.Linear(in_features=input_shape, out_features=hidden_units_1),
-#                                      nn.ReLU())
-#         # self.layer_2 = nn.Sequential(nn.Linear(in_features=hidden_units_1, out_features=hidden_units_1), nn.ReLU())
-#         # self.layer_3 = nn.Sequential(nn.Linear(in_features=hidden_units_1, out_features=hidden_units_2), nn.ReLU())
-#         # self.layer_4 = nn.Sequential(nn.Linear(in_features=hidden_units_2, out_features=hidden_units_2), nn.ReLU())
-#         # self.layer_5 = nn.Sequential(nn.Linear(in_features=hidden_units_3, out_features=hidden_units_3), nn.ReLU())
-#         self.layer_6 = nn.Sequential(nn.Flatten(), nn.Linear(in_features=hidden_units_1, out_features=hidden_units_3), nn.ReLU())
-#         self.output = nn.Linear(in_features=hidden_units_3, out_features=output_shape)
-#
-#         @torch.no_grad()
-#         def initial_weights(m):
-#             if type(m) == nn.Linear or type(m) == nn.Conv2d:
-#                 # nn.init.zeros_(m.weight)
-#                 nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
-#                 # nn.init.zeros_(m.bias)
-#
-#         def zero_weights(m):
-#             if type(m) == nn.Linear or type(m) == nn.Conv2d:
-#                 nn.init.zeros_(m.bias)
-#
-#         def zero_bias(m):
-#             if type(m) == nn.Linear or type(m) == nn.Conv2d:
-#                 nn.init.zeros_(m.bias)
-#
-#         self.layer_1.apply(initial_weights)
-#         # self.layer_2.apply(initial_weights)
-#         # self.layer_3.apply(initial_weights)
-#         # self.layer_4.apply(initial_weights)
-#         # self.layer_5.apply(initial_weights)
-#         self.layer_6.apply(initial_weights)
-#         self.output.apply(initial_weights)
-#
-#     def forward(self, x):
-#         x = self.layer_1(x)
-#         # x = self.layer_2(x)
-#         # x = self.layer_3(x)
-#         # x = self.layer_4(x)
-#         # x = self.layer_5(x)
-#         x = self.layer_6(x)
-#         return self.output(x)
+class MNISTModel_V(nn.Module):  # Improve the model V0 with nonlinear activation function nn.Relu()
+    def __init__(self, input_shape=784,
+                 output_shape=10,
+                 hidden_units_1=200, hidden_units_2=100, hidden_units_3=50):
+        super().__init__()
+        self.layer_1 = nn.Sequential(nn.Flatten(),  # Equal to x.view(-1, 784)
+                                     nn.Linear(in_features=input_shape, out_features=hidden_units_1),
+                                     nn.ReLU())
+        self.layer_2 = nn.Sequential(nn.Linear(in_features=hidden_units_1, out_features=hidden_units_2), nn.ReLU())
+        self.layer_3 = nn.Sequential(nn.Linear(in_features=hidden_units_2, out_features=hidden_units_3), nn.ReLU())
+        # self.layer_4 = nn.Sequential(nn.Linear(in_features=hidden_units_2, out_features=hidden_units_2), nn.ReLU())
+        # self.layer_5 = nn.Sequential(nn.Linear(in_features=hidden_units_3, out_features=hidden_units_3), nn.ReLU())
+        # self.layer_6 = nn.Sequential(nn.Flatten(), nn.Linear(in_features=hidden_units_1, out_features=hidden_units_3), nn.ReLU())
+        self.output = nn.Linear(in_features=hidden_units_3, out_features=output_shape)
+
+        @torch.no_grad()
+        def initial_weights(m):
+            if type(m) == nn.Linear or type(m) == nn.Conv2d:
+                # nn.init.zeros_(m.weight)
+                nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
+                # nn.init.zeros_(m.bias)
+
+        def zero_weights(m):
+            if type(m) == nn.Linear or type(m) == nn.Conv2d:
+                nn.init.zeros_(m.bias)
+
+        def zero_bias(m):
+            if type(m) == nn.Linear or type(m) == nn.Conv2d:
+                nn.init.zeros_(m.bias)
+
+        self.layer_1.apply(initial_weights)
+        self.layer_2.apply(initial_weights)
+        self.layer_3.apply(initial_weights)
+        # self.layer_4.apply(initial_weights)
+        # self.layer_5.apply(initial_weights)
+        # self.layer_6.apply(initial_weights)
+        self.output.apply(initial_weights)
+
+    def forward(self, x):
+        x = self.layer_1(x)
+        x = self.layer_2(x)
+        x = self.layer_3(x)
+        # x = self.layer_4(x)
+        # x = self.layer_5(x)
+        # x = self.layer_6(x)
+        return self.output(x)
 
 class KMNISTModel(nn.Module):
     def __init__(self):

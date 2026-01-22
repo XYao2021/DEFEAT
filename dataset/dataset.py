@@ -8,6 +8,7 @@ from PIL import Image
 import torch
 import torchvision
 
+
 class FashionMNISTEnhanced(FashionMNIST):
     def __init__(self, root, train=True, transform=None, target_transform=None, download=False, device=None):
         super().__init__(root, train, transform, target_transform, download)
@@ -35,6 +36,7 @@ class FashionMNISTEnhanced(FashionMNIST):
     def __getitem__(self, index):
         image, label = self.data_transformed[index], self.target_transformed[index]
         return image, label
+
 
 class EMNISTEnhanced(EMNIST):  # Need to reduce the number of inputs
     def __init__(self, root, train=True, transform=None, target_transform=None, download=False, device=None):
@@ -64,6 +66,7 @@ class EMNISTEnhanced(EMNIST):  # Need to reduce the number of inputs
         image, label = self.data_transformed[index], self.target_transformed[index]
         return image, label
 
+
 class QMNISTEnhanced(QMNIST):  # Need to reduce the number of inputs
     def __init__(self, root, train=True, transform=None, target_transform=None, download=False, device=None):
         super().__init__(root, train, transform, target_transform, download)
@@ -91,6 +94,7 @@ class QMNISTEnhanced(QMNIST):  # Need to reduce the number of inputs
     def __getitem__(self, index):
         image, label = self.data_transformed[index], self.target_transformed[index]
         return image, label
+
 
 class KMNISTEnhanced(KMNIST):
     def __init__(self, root, train=True, transform=None, target_transform=None, download=False, device=None):
@@ -120,6 +124,7 @@ class KMNISTEnhanced(KMNIST):
         image, label = self.data_transformed[index], self.target_transformed[index]
         return image, label
 
+
 class MNISTEnhanced(MNIST):
     def __init__(self, root, train=True, transform=None, target_transform=None, download=False, device=None):
         super().__init__(root, train, transform, target_transform, download)
@@ -147,6 +152,7 @@ class MNISTEnhanced(MNIST):
     def __getitem__(self, index):
         image, label = self.data_transformed[index], self.target_transformed[index]
         return image, label
+
 
 class SVHNEnhanced(SVHN):
     def __init__(self, root, train=True, transform=None, target_transform=None, download=False, device=None):
@@ -176,6 +182,7 @@ class SVHNEnhanced(SVHN):
         image, label = self.data_transformed[index], self.target_transformed[index]
         return image, label
 
+
 class CIFAR10Enhanced(CIFAR10):
     def __init__(self, root, train=True, transform=None, target_transform=None, download=None, device=None):
         super().__init__(root, train, transform, target_transform, download)
@@ -204,6 +211,36 @@ class CIFAR10Enhanced(CIFAR10):
     def __getitem__(self, index):
         image, label = self.data_transformed[index], self.target_transformed[index]
         return image, label
+
+
+class CIFAR100Enhanced(CIFAR100):
+    def __init__(self, root, train=True, transform=None, target_transform=None, download=None, device=None):
+        super().__init__(root, train, transform, target_transform, download)
+        self.data_transformed = []
+        self.target_transformed = []
+
+        for image in self.data:
+            image = Image.fromarray(image)
+            if self.transform is not None:
+                image = self.transform(image)
+            self.data_transformed.append(image)
+
+        for target in self.targets:
+            if self.target_transform is not None:
+                target = self.target_transform(target)
+            self.target_transformed.append(torch.tensor(target))
+
+        self.data_transformed = torch.stack(self.data_transformed)
+        self.target_transformed = torch.stack(self.target_transformed)
+
+        if device is not None:
+            self.data_transformed = self.data_transformed.to(device)
+            self.target_transformed = self.target_transformed.to(device)
+
+    def __getitem__(self, index):
+        image, label = self.data_transformed[index], self.target_transformed[index]
+        return image, label
+
 
 def loading(dataset_name, data_path, device):
     # print(dataset_name, data_path)
@@ -240,10 +277,12 @@ def loading(dataset_name, data_path, device):
 
     elif dataset_name == 'SVHN':
         transform = transforms.Compose([transforms.ToTensor(),
-            transforms.Normalize(mean=[0.4377, 0.4438, 0.4728], std=[0.1980, 0.2010, 0.1970])])
+                                        transforms.Normalize(mean=[0.4377, 0.4438, 0.4728],
+                                                             std=[0.1980, 0.2010, 0.1970])])
         # train_data = SVHNEnhanced(data_path, transform=transform, download=True, device=device)
         # test_data = SVHNEnhanced(data_path, train=False, transform=transform, device=device)
-        train_data = torchvision.datasets.SVHN(root='./data', split='train', transform=transforms.ToTensor(), download=True)
+        train_data = torchvision.datasets.SVHN(root='./data', split='train', transform=transforms.ToTensor(),
+                                               download=True)
         test_data = torchvision.datasets.SVHN('./data', split='test', transform=transform, download=True)
     elif dataset_name == 'CIFAR10':
         # transform = transforms.Compose([transforms.ToTensor(),
@@ -254,19 +293,50 @@ def loading(dataset_name, data_path, device):
 
         # Training data augmentation
         transform_train = transforms.Compose([transforms.RandomCrop(32, padding=4),
-                                                transforms.RandomHorizontalFlip(),
-                                                transforms.ToTensor(),
-                                                transforms.Normalize(mean, std)])
+                                              transforms.RandomHorizontalFlip(),
+                                              transforms.ToTensor(),
+                                              transforms.Normalize(mean, std)])
 
         # Test data (no augmentation)
         transform_test = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean, std)])
 
-        # train_data = CIFAR10Enhanced(data_path, transform=transform_train, download=True, device=device)
-        # test_data = CIFAR10Enhanced(data_path, transform=transform_test, train=True, device=device)
+        train_data = CIFAR10Enhanced(data_path, transform=transform_train, download=True, device=device)
+        test_data = CIFAR10Enhanced(data_path, transform=transform_test, train=False, device=device)
 
-        trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-        testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
+        # train_data = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
+        # test_data = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
+    elif dataset_name == "CIFAR100":
+        # CIFAR-100 normalization values
+        mean = [0.5071, 0.4867, 0.4408]
+        std = [0.2675, 0.2565, 0.2761]
 
+        # Training data augmentation
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean, std)
+        ])
+
+        # Test data (no augmentation)
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean, std)
+        ])
+
+        train_data = CIFAR100Enhanced(
+            data_path,
+            transform=transform_train,
+            download=True,
+            device=device
+        )
+
+        test_data = CIFAR100Enhanced(
+            data_path,
+            transform=transform_test,
+            train=False,  # 🔴 IMPORTANT: test split
+            device=device
+        )
     else:
         raise Exception('Unknown dataset')
 

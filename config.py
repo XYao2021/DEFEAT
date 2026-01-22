@@ -60,6 +60,9 @@ elif args.data == 'KMNIST':
 elif args.data == 'CIFAR10':
     model_name = 'CIFAR10Model'
     dataset = 'CIFAR10'
+elif args.data == 'CIFAR100':
+    model_name = 'CIFAR100Model'
+    dataset = 'CIFAR100'
 else:
     raise Exception('Unknown dataset, need to update')
 

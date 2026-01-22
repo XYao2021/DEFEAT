@@ -14,7 +14,7 @@ import time
 from datetime import date
 import os
 from algorithms.algorithms import Algorithms
-
+import math
 
 if device != 'cpu':
     current_device = torch.cuda.current_device()
@@ -26,25 +26,32 @@ if __name__ == '__main__':
     ALPHAS = []
     MAXES = []
 
-    Learning_rates = [0.001, 0.01, 0.02, 0.0316, 0.056, 0.1]
+    Learning_rates = [0.001, 0.01, 0.0316, 0.056, 0.1, 0.2]
+    # Learning_rates = [0.001]
     if ALGORITHM == 'BEER':
         BETAS = [1]
         Gamma = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
+        # Gamma = [0.05]
     elif ALGORITHM == 'DeepSqueeze':
         BETAS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]  # Average step
-        Gamma = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]  # gamma
+        Gamma = [1.0]  # gamma
+        # BETAS = [0.1]  # Average step
+        # Gamma = [0.1]  # gamma
     elif ALGORITHM == 'MoTEF':
         BETAS = [0.005, 0.01, 0.02, 0.04, 0.06, 0.08, 0.1]  # Lambda
         Gamma = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]  # gamma
-    elif ALGORITHM == 'DEFEAT':
-        BETAS = [1]  # Lambda
-        Gamma = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
+        # BETAS = [0.005]  # Lambda
+        # Gamma = [0.05]  # gamma
+    # elif ALGORITHM == 'DEFEAT':
+    #     BETAS = [1]  # Lambda
+    #     Gamma = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
     elif ALGORITHM == 'DEFEAT_C':
         BETAS = [1]  # Lambda
         Gamma = [1]
     elif ALGORITHM == 'CHOCO':
         BETAS = [1]
         Gamma = [0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5]
+        # Gamma = [0.1]
     elif ALGORITHM == 'DCD':
         BETAS = [1]
         Gamma = [1]
@@ -81,6 +88,8 @@ if __name__ == '__main__':
     beta_loss = []
     beta_lr = []
     beta_cons = []
+
+    start_time = time.time()
     for beta in BETAS:
         gamma_lr = []
         gamma_loss = []
@@ -270,6 +279,10 @@ if __name__ == '__main__':
                         test_loss, test_acc = test_model.accuracy(weights=test_weights, test_loader=test_loader,
                                                                   device=device)
 
+                        # if math.isnan(train_loss):  # Skip the training if the loss becomes NaN
+                        #     print("NaN loss detected, stopping training.")
+                        #     break
+
                         global_loss.append(train_loss)
                         Test_acc.append(test_acc)
                         print('SEED |', seed, '| iteration |', iter_num, '| Global Loss', round(train_loss, 6),
@@ -286,48 +299,89 @@ if __name__ == '__main__':
 
                     torch.cuda.empty_cache()  # Clean the memory cache
 
-                folder = './{}_{}_{}_{}_{}_{}'.format(ALGORITHM, dataset, NETWORK, CLIENTS, NEIGHBORS, COMPRESSION, time.strftime("%H:%M:%S", time.localtime()))
-                txt_list_lr = [LOSS, '\n', ACC]
+                folder = './{}_{}_{}_{}_{}_{}'.format(ALGORITHM, dataset, NETWORK, CLIENTS, NEIGHBORS, ALPHA)
                 os.makedirs(folder, exist_ok=True)
-                if COMPRESSION == 'topk':
-                    np.savetxt('./{}/{}_{}_{}_{}_{}_{}.txt'.format(folder, ALGORITHM, COMPRESSION, RATIO, beta, Gamma[cons], Learning_rates[lr]), txt_list_lr, fmt='%s')
-                elif COMPRESSION == 'quantization':
-                    np.savetxt('./{}/{}_{}_{}_{}_{}_{}.txt'.format(folder, ALGORITHM, COMPRESSION, QUANTIZE_LEVEL, beta, Gamma[cons], Learning_rates[lr]), txt_list_lr, fmt='%s')
+                if len(LOSS) == 0 or len(ACC) == 0:
+                    print("[WARNING] There is no useful data for this setup")
+                else:
+                    txt_list_lr = [LOSS, '\n', ACC]
 
-                lr_loss.append(sum(LOSS[-5:]) / len(LOSS[-5:]))
-                print(Learning_rates[lr], lr_loss)
+                    # if COMPRESSION == 'topk':
+                    #     np.savetxt('./{}/{}_{}_{}_{}_{}_{}.txt'.format(folder, ALGORITHM, COMPRESSION, RATIO, beta, Gamma[cons], Learning_rates[lr]), txt_list_lr, fmt='%s')
+                    # elif COMPRESSION == 'quantization':
+                    #     np.savetxt('./{}/{}_{}_{}_{}_{}_{}.txt'.format(folder, ALGORITHM, COMPRESSION, QUANTIZE_LEVEL, beta, Gamma[cons], Learning_rates[lr]), txt_list_lr, fmt='%s')
+
+                    with open('./{}/{}_{}_{}_{}_{}_{}_{}_{}.txt'.format(folder, ALGORITHM, dataset, COMPRESSION, RATIO,
+                                                                        beta, Gamma[cons], Learning_rates[lr], ALPHA),
+                              "w") as f:
+                        for item in txt_list_lr:
+                            if isinstance(item, str):
+                                # write formatting directly (e.g., '\n')
+                                f.write(item)
+                            elif isinstance(item, (list, tuple, np.ndarray)):
+                                # write vector
+                                f.write(" ".join(map(str, item)) + "\n")
+                            else:
+                                # fallback for scalars
+                                f.write(str(item) + "\n")
+
+                    lr_loss.append(sum(LOSS[-5:]) / len(LOSS[-5:]))
+                    print(Learning_rates[lr], lr_loss)
 
             "Missing the learning rate selection here, need to rewrite, start from here"
-            best_index_lr = lr_loss.index(min(lr_loss))
-            gamma_lr.append(Learning_rates[best_index_lr])
-            gamma_loss.append(lr_loss[best_index_lr])
+            if len(lr_loss) == 0:
+                print("[WARNING] lr_loss is empty, skipping LR selection")
+                continue  # or break, or set default
+            else:
+                best_index_lr = lr_loss.index(min(lr_loss))
+                gamma_lr.append(Learning_rates[best_index_lr])
+                gamma_loss.append(lr_loss[best_index_lr])
 
             # print(ALGORITHM, beta,  Gamma[:cons+1], gamma_lr, gamma_loss)
 
-        best_index_gamma = gamma_loss.index(min(gamma_loss))
-        # print(Gamma[cons], best_index_gamma)
-        best_gamma = Gamma[best_index_gamma]
-        best_lr = gamma_lr[best_index_gamma]
+        if len(gamma_loss) == 0:
+            print("[WARNING] gamma_loss is empty, skipping LR selection")
+            continue  # or break, or set default
+        else:
+            best_index_gamma = gamma_loss.index(min(gamma_loss))
+            # print(Gamma[cons], best_index_gamma)
+            best_gamma = Gamma[best_index_gamma]
+            best_lr = gamma_lr[best_index_gamma]
 
-        beta_loss.append(gamma_loss[best_index_gamma])
-        beta_lr.append(best_lr)
-        beta_cons.append(best_gamma)
+            beta_loss.append(gamma_loss[best_index_gamma])
+            beta_lr.append(best_lr)
+            beta_cons.append(best_gamma)
 
-    best_index_beta = beta_loss.index(min(beta_loss))
-    # print(beta, best_index_beta)
+    best_lr = 0
+    best_beta = 0
+    best_cons = 0
 
-    beta_beta = BETAS[best_index_beta]
-    beta_lr = beta_lr[best_index_beta]
-    beta_cons = beta_cons[best_index_beta]
-    print(beta_beta, beta_lr, beta_cons, beta_loss)
-    print(ALGORITHM, 'Best pair of parameters: learning rate = {}, gamma = {}, beta = {}'.format(beta_lr, beta_cons, beta_beta))
-    #
+    if len(beta_loss) == 0:
+        print("[WARNING] beta_loss is empty, skipping LR selection")
+    else:
+        best_index_beta = beta_loss.index(min(beta_loss))
+        # print(beta, best_index_beta)
+
+        best_beta = BETAS[best_index_beta]
+        best_lr = beta_lr[best_index_beta]
+        best_cons = beta_cons[best_index_beta]
+        print(best_beta, best_lr, best_cons, beta_loss)
+        print(ALGORITHM, 'Best pair of parameters: learning rate = {}, gamma = {}, beta = {}'.format(best_lr, best_cons,
+                                                                                                     best_beta))
+
+    time_consumed = time.time() - start_time
+
     if STORE == 1:
-        txt_list = [ALGORITHM, 'loss_list: ', beta_loss, '\n', 'best beta: ', beta_beta, '\n', 'best lr: ', beta_lr, '\n', 'best gamma: ', beta_cons]
+        txt_list = [ALGORITHM, 'loss_list: ', beta_loss, '\n', 'best beta: ', best_beta, '\n', 'best lr: ', beta_lr,
+                    '\n', 'best gamma: ', beta_cons, '\n', 'time consumed: ', time_consumed]
         if COMPRESSION == 'quantization':
-            f = open('{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, QUANTIZE_LEVEL, DISCOUNT, NETWORK, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, dataset, QUANTIZE_LEVEL, ALPHA, NETWORK,
+                                                                   CLIENTS, NEIGHBORS, date.today(),
+                                                                   time.strftime("%H:%M:%S", time.localtime())), 'w')
         elif COMPRESSION == 'topk':
-            f = open('{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, RATIO, DISCOUNT, NETWORK, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, dataset, RATIO, ALPHA, NETWORK, CLIENTS,
+                                                                   NEIGHBORS, date.today(),
+                                                                   time.strftime("%H:%M:%S", time.localtime())), 'w')
         else:
             raise Exception('Unknown compression method')
 

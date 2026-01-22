@@ -23,6 +23,7 @@ if device != 'cpu':
 
 if __name__ == '__main__':
     ACC = []
+    ACC_T = []
     LOSS = []
     for seed in Seed_set:
         random.seed(seed)
@@ -30,7 +31,7 @@ if __name__ == '__main__':
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
 
-        if dataset == 'FashionMNIST' or 'CIFAR10' or 'MNIST':
+        if dataset == 'FashionMNIST' or 'CIFAR10' or 'MNIST' or 'CIFAR100' or 'EMNIST':
             train_data, test_data = loading(dataset_name=dataset, data_path=dataset_path, device=device)
             NUM_CLASS = len(train_data.classes)
 
@@ -46,8 +47,8 @@ if __name__ == '__main__':
                 return_indices=False,  # set True if you only want indices
             )
 
-            train_loader = DataLoader(train_data, batch_size=BATCH_SIZE_TEST, shuffle=True, pin_memory=True, num_workers=0)
-            test_loader = DataLoader(test_data, batch_size=BATCH_SIZE_TEST, shuffle=False, pin_memory=True, num_workers=0)
+            train_loader = DataLoader(train_data, batch_size=BATCH_SIZE_TEST, shuffle=True, num_workers=0)
+            test_loader = DataLoader(test_data, batch_size=BATCH_SIZE_TEST, shuffle=False, num_workers=0)
         else:
             raise Exception('Unrecognized dataset !!!')
 
@@ -164,10 +165,11 @@ if __name__ == '__main__':
                  device=device, self_weights=self_weights, neighbor_weights=neighbor_weights, data_loader=data_loader, learning_rate=LEARNING_RATE,
                  compressors=compressors, gamma=DISCOUNT, residual_errors=residual_errors, self_accumulate_update=self_accumulate_update, neighbor_accumulate_update=neighbor_accumulate_update,
                  self_H=self_H, neighbor_H=neighbor_H, self_G=self_G, neighbor_G=neighbor_G, lamda=BETA, self_update=self_update,
-                 neighbor_update=neighbor_update, average_rate=DISCOUNT, normalization=normalization)
+                 neighbor_update=neighbor_update, average_rate=BETA, normalization=normalization)
 
         global_loss = []
         Test_acc = []
+        Train_acc = []
         iter_num = 0
         print('ALGORITHM: ', ALGORITHM, 'CONSENSUS/GAMMA: ', DISCOUNT, 'MOMENTUM: ', BETA, 'FIRST_TIME: ', FIRST)
 
@@ -203,13 +205,35 @@ if __name__ == '__main__':
 
             global_loss.append(train_loss)
             Test_acc.append(test_acc)
+            Train_acc.append(train_loss)
             print('SEED |', seed, '| iteration |', iter_num, '| Global Loss', round(train_loss, 6), '| Training Accuracy |',
                   round(train_acc, 4), '| Test Accuracy |', round(test_acc, 4), '\n')
 
             if iter_num >= AGGREGATION:
                 ACC += Test_acc
                 LOSS += global_loss
-                # print([compressors[i].discount_parameter for i in range(CLIENTS)])
+                ACC_T += Train_acc
+#                 if dataset == "CIFAR10" or "CIFAR100":
+#                     txt_list = [ACC, '\n', LOSS]
+#                     # print([compressors[i].discount_parameter for i in range(CLIENTS)])
+#                     if COMPRESSION == 'quantization':
+#                         f = open(
+#                             '{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, QUANTIZE_LEVEL, DISCOUNT,
+#                                                                               TEST, dataset, LEARNING_RATE, BETA, CLIENTS,
+#                                                                               NEIGHBORS, date.today(),
+#                                                                               time.strftime("%H:%M:%S", time.localtime())),
+#                             'w')
+#                     elif COMPRESSION == 'topk' or 'randk':
+#                         f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, RATIO, DISCOUNT, TEST,
+#                                                                                    dataset, LEARNING_RATE, BETA, CLIENTS,
+#                                                                                    NEIGHBORS, date.today(),
+#                                                                                    time.strftime("%H:%M:%S",
+#                                                                                                  time.localtime())), 'w')
+#                     else:
+#                         raise Exception('Unknown compression method')
+
+#                     for item in txt_list:
+#                         f.write("%s\n" % item)
                 break
         del models
         del self_weights
@@ -226,12 +250,13 @@ if __name__ == '__main__':
             txt_list = [Maxes, '\n', Mines, '\n', ACC, '\n', LOSS]
             print(max(Maxes), min(Maxes), max(Mines), min(Mines))
         else:
-            txt_list = [ACC, '\n', LOSS, '\n', eigenvalues, '\n', Gaps]
+            # txt_list = [ACC, '\n', LOSS, '\n', ACC_T]
+            txt_list = [Algorithm.vectors]
 
         if COMPRESSION == 'quantization':
-            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, QUANTIZE_LEVEL, DISCOUNT, TEST, dataset, LEARNING_RATE, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, ALPHA, QUANTIZE_LEVEL, DISCOUNT, TEST, dataset, LEARNING_RATE, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
         elif COMPRESSION == 'topk' or 'randk':
-            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|.txt'.format(ALGORITHM, ALPHA, RATIO, DISCOUNT, TEST, dataset, LEARNING_RATE, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
+            f = open('{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|final.txt'.format(ALGORITHM, ALPHA, RATIO, DISCOUNT, TEST, dataset, LEARNING_RATE, BETA, CLIENTS, NEIGHBORS, date.today(), time.strftime("%H:%M:%S", time.localtime())), 'w')
         else:
             raise Exception('Unknown compression method')
 

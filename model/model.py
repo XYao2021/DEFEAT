@@ -25,7 +25,7 @@ class Model:
         self.size_list = []
 
         if model_name == 'FashionMNIST':
-            from model.MNISTModel import MNISTModel, MNISTModel_V
+            from model.MNISTModel import MNISTModel
             self.model = MNISTModel().to(device)
             # self.model = MNISTModel_V().to(device)
         elif model_name == 'MNIST':
@@ -36,8 +36,8 @@ class Model:
             self.model = KMNISTModel().to(device)
             # self.model = MNISTModel().to(device)
         elif model_name == 'CIFAR10Model':
-            from model.CIFAR10Model import ResNet8
-            self.model = ResNet20().to(device)
+            from model.CIFAR10Model import ResNet8, ResNetCifar100, ResNetCifar100Light
+            self.model = ResNet8().to(device)
 
         if pretrained_model_file is not None:
             self.model.load_state_dict(torch.load(pretrained_model_file, map_location=device))
@@ -58,13 +58,13 @@ class Model:
                 self.shape_list.append(shape)
                 self.size_list.append(list(weight.reshape((-1, )).size())[0])
 
-    def get_weights(self):
-        with torch.no_grad():
-            if self.flatten_weight:
-                return torch.cat([param.reshape((-1,)) for param in self.model.parameters()])
-                # return torch.cat([param.reshape((-1,)) for param in self.model.state_dict().values()])
-            else:
-                return copy.deepcopy(self.model.state_dict())
+    # def get_weights(self):
+    #     with torch.no_grad():
+    #         if self.flatten_weight:
+    #             return torch.cat([param.reshape((-1,)) for param in self.model.parameters()])
+    #             # return torch.cat([param.reshape((-1,)) for param in self.model.state_dict().values()])
+    #         else:
+    #             return copy.deepcopy(self.model.state_dict())
 
     def assign_weights(self, weights):
         if self.flatten_weight:
@@ -72,31 +72,93 @@ class Model:
         else:
             self.model.load_state_dict(weights)
 
-    def assign_flatten_weights(self, weights):
-        # weights_dict = collections.OrderedDict()
-        weights_dict = copy.deepcopy(self.model.state_dict())
-        # print(weights_dict)
-        # print(self.model.state_dict())
-        # print(len(weights), sum(self.size_list), self.shape_list, self.size_list, self.key_list)
-        new_weights = torch.split(weights, self.size_list)
-        for i in range(len(self.shape_list)):
-            weights_dict[self.key_list[i]] = new_weights[i].reshape(self.shape_list[i])
-        self.model.load_state_dict(weights_dict)
+    # def assign_flatten_weights(self, weights):
+    #     # weights_dict = collections.OrderedDict()
+    #     weights_dict = copy.deepcopy(self.model.state_dict())
+    #     # print(weights_dict)
+    #     # print(self.model.state_dict())
+    #     # print(len(weights), sum(self.size_list), self.shape_list, self.size_list, self.key_list)
+    #     new_weights = torch.split(weights, self.size_list)
+    #     for i in range(len(self.shape_list)):
+    #         weights_dict[self.key_list[i]] = new_weights[i].reshape(self.shape_list[i])
+    #     self.model.load_state_dict(weights_dict)
+    #
+    # def accuracy(self, weights, test_loader, device):
+    #     if weights is not None:
+    #         self.assign_weights(weights)
+    #     self.model.eval()
+    #     correct = 0
+    #     loss = 0
+    #     with torch.no_grad():
+    #         for i, (images, labels) in enumerate(test_loader):
+    #             images, labels = Variable(images).to(device), Variable(labels).to(device)
+    #             # images, labels = images.to(device), labels.to(device)
+    #             pred = self.model(images)
+    #             loss += self.loss_function(pred, labels).sum()
+    #             pred = pred.data.max(1)[1]
+    #             correct += pred.eq(labels.data.view_as(pred)).sum()
+    #     loss /= len(test_loader.dataset)
+    #     acc = float(correct) / len(test_loader.dataset)
+    #     return loss.item(), acc
+
+    def get_weights(self):
+        with torch.no_grad():
+            if self.flatten_weight:
+                # ✅ Include both parameters AND buffers (BN stats)
+                weights_and_buffers = []
+
+                # Get trainable parameters
+                for param in self.model.parameters():
+                    weights_and_buffers.append(param.reshape(-1))
+
+                # Get buffers (BN running_mean, running_var, etc.)
+                for buffer in self.model.buffers():
+                    weights_and_buffers.append(buffer.reshape(-1))
+
+                return torch.cat(weights_and_buffers)
+            else:
+                return copy.deepcopy(self.model.state_dict())
+
+    def assign_flatten_weights(self, flat_weights):
+        """Assign flattened weights back to model"""
+        with torch.no_grad():
+            offset = 0
+
+            # Assign parameters
+            for param in self.model.parameters():
+                param_length = param.numel()
+                param.copy_(flat_weights[offset:offset + param_length].reshape(param.shape))
+                offset += param_length
+
+            # Assign buffers (BN stats)
+            for buffer in self.model.buffers():
+                buffer_length = buffer.numel()
+                buffer.copy_(flat_weights[offset:offset + buffer_length].reshape(buffer.shape))
+                offset += buffer_length
 
     def accuracy(self, weights, test_loader, device):
         if weights is not None:
             self.assign_weights(weights)
+
         self.model.eval()
         correct = 0
-        loss = 0
+        total = 0
+        total_loss = 0.0
+
         with torch.no_grad():
-            for i, (images, labels) in enumerate(test_loader):
-                images, labels = Variable(images).to(device), Variable(labels).to(device)
-                # images, labels = images.to(device), labels.to(device)
-                pred = self.model(images)
-                loss += self.loss_function(pred, labels).sum()
-                pred = pred.data.max(1)[1]
-                correct += pred.eq(labels.data.view_as(pred)).sum()
-        loss /= len(test_loader.dataset)
-        acc = float(correct) / len(test_loader.dataset)
-        return loss.item(), acc
+            for images, labels in test_loader:
+                images = images.to(device)
+                labels = labels.to(device)
+
+                logits = self.model(images)
+
+                total_loss += self.loss_function(logits, labels).item()
+                preds = torch.argmax(logits, dim=1)
+
+                correct += (preds == labels).sum().item()
+                total += labels.size(0)
+
+        avg_loss = total_loss / len(test_loader)
+        acc = correct / total
+
+        return avg_loss, acc
